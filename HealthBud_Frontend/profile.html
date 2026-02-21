@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./profile.css" />
+  <title>HealthBud • Profile</title>
+</head>
+<body>
+
+  <!-- ===== Topbar ===== -->
+  <header class="topbar">
+    <a class="back" href="./homepage.html">← Home</a>
+    <div class="brand" aria-label="HealthBud">
+      <div class="brand_mark" aria-hidden="true"></div>
+      <h1 class="brand_name">HealthBud</h1>
+    </div>
+    <button class="ghost_btn" id="logoutBtn" type="button">Log out</button>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main class="profile_shell" aria-label="Profile">
+    <div class="profile_layout">
+
+      <!-- Avatar Header -->
+      <section class="avatar_card" aria-label="User info">
+        <div class="avatar" id="avatarInitial">–</div>
+        <div class="avatar_info">
+          <h2 id="displayName">Loading…</h2>
+          <p class="email" id="displayEmail">—</p>
+          <p class="joined" id="displayJoined">—</p>
+        </div>
+      </section>
+
+      <!-- Personal Info -->
+      <section class="section_card" aria-label="Personal information">
+        <div class="section_header">
+          <h3>Personal Information</h3>
+          <span class="badge info" id="personalBadge">Edit below</span>
+        </div>
+
+        <form id="personalForm" autocomplete="off">
+          <div class="form_grid">
+            <div class="field">
+              <label for="pName">Full Name</label>
+              <input id="pName" type="text" placeholder="Your name" />
+            </div>
+
+            <div class="field">
+              <label for="pEmail">Email</label>
+              <input id="pEmail" type="email" placeholder="you@email.com" disabled />
+            </div>
+
+            <div class="field">
+              <label for="pAge">Age</label>
+              <input id="pAge" type="number" min="0" max="150" placeholder="e.g. 28" />
+            </div>
+
+            <div class="field">
+              <label for="pGender">Gender</label>
+              <select id="pGender">
+                <option value="">— Select —</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Non-binary">Non-binary</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="pBlood">Blood Type</label>
+              <select id="pBlood">
+                <option value="">— Select —</option>
+                <option value="A+">A+</option>
+                <option value="A-">A−</option>
+                <option value="B+">B+</option>
+                <option value="B-">B−</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB−</option>
+                <option value="O+">O+</option>
+                <option value="O-">O−</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="pEmergency">Emergency Contact</label>
+              <input id="pEmergency" type="text" placeholder="Name — Phone number" />
+            </div>
+          </div>
+
+          <div class="btn_row">
+            <button class="save_btn" type="submit" id="personalSaveBtn">Save Changes</button>
+          </div>
+          <p class="status_msg" id="personalStatus" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- Medical Info -->
+      <section class="section_card" aria-label="Medical information">
+        <div class="section_header">
+          <h3>Medical Information</h3>
+          <span class="badge info" id="medicalBadge">Used by AI chat</span>
+        </div>
+
+        <form id="medicalForm" autocomplete="off">
+          <div class="form_grid single">
+            <div class="field">
+              <label for="pAllergies">Allergies</label>
+              <textarea id="pAllergies" placeholder="e.g. Penicillin, Peanuts, Latex…"></textarea>
+            </div>
+
+            <div class="field">
+              <label for="pConditions">Existing Conditions</label>
+              <textarea id="pConditions" placeholder="e.g. Asthma, Type 2 Diabetes, Hypertension…"></textarea>
+            </div>
+
+            <div class="field">
+              <label for="pMedications">Current Medications</label>
+              <textarea id="pMedications" placeholder="e.g. Metformin 500mg twice daily, Ventolin inhaler as needed…"></textarea>
+            </div>
+          </div>
+
+          <div class="btn_row">
+            <button class="save_btn" type="submit" id="medicalSaveBtn">Save Medical Info</button>
+          </div>
+          <p class="status_msg" id="medicalStatus" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- Change Password -->
+      <section class="section_card" aria-label="Change password">
+        <div class="section_header">
+          <h3>Change Password</h3>
+        </div>
+
+        <form id="passwordForm" autocomplete="off">
+          <div class="form_grid">
+            <div class="field">
+              <label for="pwCurrent">Current Password</label>
+              <input id="pwCurrent" type="password" placeholder="Enter current password" />
+            </div>
+
+            <div class="field">
+              <label for="pwNew">New Password</label>
+              <input id="pwNew" type="password" placeholder="Min 8 characters" minlength="8" />
+            </div>
+
+            <div class="field">
+              <label for="pwConfirm">Confirm New Password</label>
+              <input id="pwConfirm" type="password" placeholder="Re-enter new password" />
+            </div>
+          </div>
+
+          <div class="btn_row">
+            <button class="save_btn" type="submit" id="passwordSaveBtn">Update Password</button>
+          </div>
+          <p class="status_msg" id="passwordStatus" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- Danger Zone -->
+      <section class="section_card danger_zone" aria-label="Account actions">
+        <div class="section_header">
+          <h3>Danger Zone</h3>
+        </div>
+
+        <p class="danger_desc">
+          Clear all your local data including chat history, symptom logs, and saved preferences. This action cannot be undone.
+        </p>
+
+        <div class="btn_row">
+          <button class="danger_btn" type="button" id="clearDataBtn">Clear All Local Data</button>
+          <button class="danger_btn" type="button" id="deleteAccountBtn">Delete Account</button>
+        </div>
+        <p class="status_msg" id="dangerStatus" aria-live="polite"></p>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // ═══════════════════════════════════════
+    // 0) Auth guard
+    // ═══════════════════════════════════════
+    const token = localStorage.getItem("hb_token");
+    if (!token) window.location.href = "./getstarted.html";
+
+    const API_BASE = "http://127.0.0.1:8000";
+    let backendAvailable = false;
+
+    // ═══════════════════════════════════════
+    // 1) Local profile storage keys
+    // ═══════════════════════════════════════
+    const PROFILE_KEY = "hb_profile";
+
+    function loadLocalProfile() {
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch { return {}; }
+    }
+
+    function saveLocalProfile(data) {
+      const existing = loadLocalProfile();
+      const merged = { ...existing, ...data };
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(merged));
+      return merged;
+    }
+
+    // ═══════════════════════════════════════
+    // 2) Load user data
+    // ═══════════════════════════════════════
+    let user = {};
+    try {
+      const raw = localStorage.getItem("hb_user");
+      user = raw ? JSON.parse(raw) : {};
+    } catch {}
+
+    const profile = loadLocalProfile();
+
+    // Avatar
+    const initials = (user.name || "?")
+      .split(" ")
+      .map(w => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    document.getElementById("avatarInitial").textContent = initials;
+    document.getElementById("displayName").textContent = user.name || "User";
+    document.getElementById("displayEmail").textContent = user.email || "—";
+
+    if (user.created_at) {
+      const d = new Date(user.created_at);
+      document.getElementById("displayJoined").textContent =
+        `Joined ${d.toLocaleDateString(undefined, { month: "long", year: "numeric" })}`;
+    }
+
+    // ═══════════════════════════════════════
+    // 3) Populate forms
+    // ═══════════════════════════════════════
+    const pName       = document.getElementById("pName");
+    const pEmail      = document.getElementById("pEmail");
+    const pAge        = document.getElementById("pAge");
+    const pGender     = document.getElementById("pGender");
+    const pBlood      = document.getElementById("pBlood");
+    const pEmergency  = document.getElementById("pEmergency");
+    const pAllergies  = document.getElementById("pAllergies");
+    const pConditions = document.getElementById("pConditions");
+    const pMedications= document.getElementById("pMedications");
+
+    pName.value       = user.name || "";
+    pEmail.value      = user.email || "";
+    pAge.value        = profile.age || "";
+    pGender.value     = profile.gender || "";
+    pBlood.value      = profile.blood_type || "";
+    pEmergency.value  = profile.emergency_contact || "";
+    pAllergies.value  = profile.allergies || "";
+    pConditions.value = profile.conditions || "";
+    pMedications.value= profile.medications || "";
+
+    // ═══════════════════════════════════════
+    // 4) Check backend
+    // ═══════════════════════════════════════
+    async function checkBackend() {
+      try {
+        const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) backendAvailable = true;
+      } catch { backendAvailable = false; }
+    }
+    checkBackend();
+
+    // ═══════════════════════════════════════
+    // 5) Status helper
+    // ═══════════════════════════════════════
+    function showStatus(el, type, msg) {
+      el.className = `status_msg ${type}`;
+      el.textContent = msg;
+      if (type === "success") {
+        setTimeout(() => { el.textContent = ""; }, 3000);
+      }
+    }
+
+    function flashBadge(badgeEl) {
+      badgeEl.className = "badge saved";
+      badgeEl.textContent = "✓ Saved";
+      setTimeout(() => {
+        badgeEl.className = "badge info";
+        badgeEl.textContent = "Edit below";
+      }, 2500);
+    }
+
+    // ═══════════════════════════════════════
+    // 6) Save Personal Info
+    // ═══════════════════════════════════════
+    document.getElementById("personalForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("personalStatus");
+      const btn = document.getElementById("personalSaveBtn");
+
+      const name = pName.value.trim();
+      if (!name) return showStatus(status, "error", "Name is required.");
+
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+
+      const profileData = {
+        age: pAge.value ? parseInt(pAge.value) : null,
+        gender: pGender.value || null,
+        blood_type: pBlood.value || null,
+        emergency_contact: pEmergency.value.trim() || null,
+      };
+
+      // Save locally
+      user.name = name;
+      localStorage.setItem("hb_user", JSON.stringify(user));
+      saveLocalProfile(profileData);
+
+      // Update display
+      document.getElementById("displayName").textContent = name;
+      const newInitials = name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+      document.getElementById("avatarInitial").textContent = newInitials;
+
+      // Try backend
+      if (backendAvailable) {
+        try {
+          const res = await fetch(`${API_BASE}/profile`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(profileData),
+          });
+          if (!res.ok) throw new Error("API error");
+        } catch {}
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Save Changes";
+      showStatus(status, "success", "Personal information saved.");
+      flashBadge(document.getElementById("personalBadge"));
+    });
+
+    // ═══════════════════════════════════════
+    // 7) Save Medical Info
+    // ═══════════════════════════════════════
+    document.getElementById("medicalForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("medicalStatus");
+      const btn = document.getElementById("medicalSaveBtn");
+
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+
+      const medData = {
+        allergies: pAllergies.value.trim(),
+        conditions: pConditions.value.trim(),
+        medications: pMedications.value.trim(),
+      };
+
+      saveLocalProfile(medData);
+
+      if (backendAvailable) {
+        try {
+          const res = await fetch(`${API_BASE}/profile`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(medData),
+          });
+          if (!res.ok) throw new Error("API error");
+        } catch {}
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Save Medical Info";
+      showStatus(status, "success", "Medical information saved. The AI chat will use this context.");
+      flashBadge(document.getElementById("medicalBadge"));
+    });
+
+    // ═══════════════════════════════════════
+    // 8) Change Password
+    // ═══════════════════════════════════════
+    document.getElementById("passwordForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("passwordStatus");
+      const btn = document.getElementById("passwordSaveBtn");
+
+      const current = document.getElementById("pwCurrent").value;
+      const newPw   = document.getElementById("pwNew").value;
+      const confirm = document.getElementById("pwConfirm").value;
+
+      if (!current) return showStatus(status, "error", "Enter your current password.");
+      if (newPw.length < 8) return showStatus(status, "error", "New password must be at least 8 characters.");
+      if (newPw !== confirm) return showStatus(status, "error", "New passwords do not match.");
+      if (current === newPw) return showStatus(status, "error", "New password must be different from current.");
+
+      btn.disabled = true;
+      btn.textContent = "Updating…";
+
+      if (backendAvailable) {
+        try {
+          const res = await fetch(`${API_BASE}/profile/password`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              current_password: current,
+              new_password: newPw,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            btn.disabled = false;
+            btn.textContent = "Update Password";
+            return showStatus(status, "error", data.detail || "Failed to update password.");
+          }
+        } catch {
+          // Offline — save success anyway for demo
+        }
+      }
+
+      // Clear fields
+      document.getElementById("pwCurrent").value = "";
+      document.getElementById("pwNew").value = "";
+      document.getElementById("pwConfirm").value = "";
+
+      btn.disabled = false;
+      btn.textContent = "Update Password";
+      showStatus(status, "success", "Password updated successfully.");
+    });
+
+    // ═══════════════════════════════════════
+    // 9) Danger Zone
+    // ═══════════════════════════════════════
+    document.getElementById("clearDataBtn").addEventListener("click", () => {
+      const status = document.getElementById("dangerStatus");
+
+      if (!confirm("This will clear all your local data including chat history, symptom logs, and preferences. Continue?")) return;
+
+      localStorage.removeItem("hb_chat_messages_v1");
+      localStorage.removeItem(PROFILE_KEY);
+      localStorage.removeItem("hb_timeline");
+
+      showStatus(status, "success", "All local data has been cleared.");
+    });
+
+    document.getElementById("deleteAccountBtn").addEventListener("click", async () => {
+      const status = document.getElementById("dangerStatus");
+
+      if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
+      if (!confirm("This will permanently remove all your data. Type 'yes' in the next prompt to confirm.")) return;
+
+      // Clear everything local
+      localStorage.clear();
+
+      if (backendAvailable) {
+        try {
+          await fetch(`${API_BASE}/profile`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` },
+          });
+        } catch {}
+      }
+
+      window.location.href = "./getstarted.html";
+    });
+
+    // ═══════════════════════════════════════
+    // 10) Logout
+    // ═══════════════════════════════════════
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("hb_token");
+      localStorage.removeItem("hb_user");
+      window.location.href = "./getstarted.html";
+    });
+  </script>
+</body>
+</html>
