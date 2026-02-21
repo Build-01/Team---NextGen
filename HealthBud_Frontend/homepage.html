@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./homepage.css" />
+  <title>HealthBud • Home</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" aria-label="HealthBud">
+      <div class="brand_mark" aria-hidden="true"></div>
+      <h1 class="brand_name">HealthBud</h1>
+    </div>
+
+    <div class="topbar_right">
+      <button class="ghost_btn" id="logoutBtn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="hero" aria-label="Welcome">
+      <p class="kicker">Your medical companion</p>
+      <h2 class="title" id="welcomeTitle">Welcome</h2>
+      <p class="subtitle">
+        Use the shortcuts on the right to chat about symptoms, track your timeline, find care, or update your profile.
+      </p>
+
+      <div class="cards">
+        <article class="info_card">
+          <h3>Not a diagnosis</h3>
+          <p>If you have severe symptoms, call emergency services or seek urgent care.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- 4 floating ladder buttons on right -->
+  <nav class="ladder" aria-label="Primary navigation">
+    <a class="ladder_btn" href="./chat.html">
+      <span class="btn_title">Chat</span>
+      <span class="btn_sub">Symptoms & guidance</span>
+    </a>
+
+    <a class="ladder_btn" href="./timeline.html">
+      <span class="btn_title">Timeline</span>
+      <span class="btn_sub">Trends over time</span>
+    </a>
+
+    <a class="ladder_btn" href="./find-care.html">
+      <span class="btn_title">Find Care</span>
+      <span class="btn_sub">Nearby options</span>
+    </a>
+
+    <a class="ladder_btn" href="./profile.html">
+      <span class="btn_title">Profile</span>
+      <span class="btn_sub">Settings</span>
+    </a>
+  </nav>
+
+  <script>
+    // Demo auth guard
+    const token = localStorage.getItem("hb_token");
+    if (!token) window.location.href = "./get-started.html";
+
+    // Personalize title
+    const userRaw = localStorage.getItem("hb_user");
+    if (userRaw) {
+      try {
+        const user = JSON.parse(userRaw);
+        const name = user?.name ? user.name : "";
+        document.getElementById("welcomeTitle").textContent = name ? `Welcome, ${name}` : "Welcome";
+      } catch {}
+    }
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("hb_token");
+      localStorage.removeItem("hb_user");
+      window.location.href = "./get-started.html";
+    });
+  </script>
+</body>
+</html>
