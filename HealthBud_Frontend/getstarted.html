@@ -65,6 +65,7 @@
 
           <button id="loginSubmit" type="submit">Log In</button>
           <a class="forgot" href="#">Forgot password?</a>
+
         </form>
       </section>
     </main>
@@ -101,8 +102,25 @@
       });
     });
 
-    // Basic client-side validation (demo functional)
+    // Error helper
     function showError(el, msg){ el.textContent = msg || ""; }
+
+    // -------------------------
+    // DEMO USER (NO BACKEND)
+    // -------------------------
+    const DEMO_USER = {
+      id: 1,
+      name: "Ruth",
+      email: "bensagie4@gmail.com",
+      created_at: "2026-02-21T00:00:00.000Z"
+    };
+    const DEMO_PASSWORD = "DemoPass123!";
+
+    function saveSession(user){
+      // mimic session keys you’ll use later with the backend
+      localStorage.setItem("hb_token", "demo-token");
+      localStorage.setItem("hb_user", JSON.stringify(user));
+    }
 
     document.getElementById("signupForm").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -116,8 +134,16 @@
       if(pass.value.length < 8) return showError(err, "Password must be at least 8 characters.");
       showError(err, "");
 
-      // Replace with real backend call later
-      alert("Sign up successful (demo). Next: connect to backend.");
+      // Demo behavior: "create" a user locally and log them in
+      const user = {
+        id: Date.now(),
+        name: name.value.trim(),
+        email: email.value.trim().toLowerCase(),
+        created_at: new Date().toISOString()
+      };
+
+      saveSession(user);
+      window.location.href = "./homepage.html";
     });
 
     document.getElementById("loginForm").addEventListener("submit", (e) => {
@@ -130,8 +156,16 @@
       if(!pass.value) return showError(err, "Please enter your password.");
       showError(err, "");
 
-      // Replace with real backend call later
-      alert("Login successful (demo). Next: redirect to app dashboard.");
+      const enteredEmail = email.value.trim().toLowerCase();
+      const enteredPass = pass.value;
+
+      // Demo login: accept ONLY the demo credentials
+      if (enteredEmail !== DEMO_USER.email || enteredPass !== DEMO_PASSWORD) {
+        return showError(err, "Demo login: use demo@healthbud.app / DemoPass123!");
+      }
+
+      saveSession(DEMO_USER);
+      window.location.href = "./homepage.html";
     });
   </script>
 </body>
