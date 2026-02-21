@@ -156,10 +156,10 @@
       for (const symptom of known) {
         if (cleaned.includes(symptom)) return symptom;
       }
-      return "general discomfort";
+      return null;
     }
 
-    function formatAssessment(data) {
+    function formatAssessmentDetails(data) {
       const assessment = data.assessment || {};
       const conditions = (assessment.possible_conditions || []).join(", ") || "No clear condition listed";
       const remedies = (assessment.possible_remedies || []).map(item => `• ${item}`).join("\n") || "• No remedy listed";
@@ -181,16 +181,37 @@
       ].join("\n");
     }
 
+    function formatAssistantReply(data) {
+      const assessment = data.assessment || {};
+      const conversational = (assessment.assistant_message || "").trim();
+      if (!conversational) return formatAssessmentDetails(data);
+
+      if (assessment.show_structured_output === false) {
+        return conversational;
+      }
+
+      const hasHealthDetails =
+        (assessment.possible_conditions || []).length > 0 ||
+        (assessment.follow_up_questions || []).length > 0 ||
+        (assessment.possible_remedies || []).length > 0;
+
+      if (!hasHealthDetails) {
+        return conversational;
+      }
+
+      return `${conversational}\n\n---\n\n${formatAssessmentDetails(data)}`;
+    }
+
     async function requestBackendAssessment(messageText) {
+      const inferredSymptom = extractPrimarySymptom(messageText);
+      const symptoms = inferredSymptom
+        ? [{ name: inferredSymptom, severity: extractSeverity(messageText) }]
+        : [];
+
       const payload = {
         message: messageText,
         locale: "en-NG",
-        symptoms: [
-          {
-            name: extractPrimarySymptom(messageText),
-            severity: extractSeverity(messageText),
-          },
-        ],
+        symptoms,
       };
 
       const response = await fetch(`${API_BASE}/chat/assess`, {
@@ -249,7 +270,7 @@
       try {
         const result = await requestBackendAssessment(text);
         removeTypingBubble();
-        addMessage("assistant", formatAssessment(result));
+        addMessage("assistant", formatAssistantReply(result));
         statusPill.textContent = "Backend connected";
       } catch (error) {
         removeTypingBubble();

@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SymptomInput(BaseModel):
@@ -38,6 +38,8 @@ class UrgencyLevel(str, Enum):
 
 
 class AssessmentData(BaseModel):
+    assistant_message: str
+    show_structured_output: bool = True
     summary: str
     follow_up_questions: list[str] = Field(default_factory=list)
     possible_conditions: list[str] = Field(default_factory=list)
@@ -51,11 +53,19 @@ class AssessmentData(BaseModel):
 
 
 class ChatAssessmentRequest(BaseModel):
-    message: str = Field(..., min_length=5, max_length=3000)
+    message: str = Field(..., min_length=1, max_length=12000)
     symptoms: list[SymptomInput] = Field(default_factory=list)
     patient_context: PatientContext | None = None
     locale: str = Field(default="en-NG", max_length=15)
     session_id: str | None = None
+
+    @field_validator("message")
+    @classmethod
+    def validate_message_not_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("message cannot be blank")
+        return cleaned
 
 
 class ChatAssessmentResponse(BaseModel):
