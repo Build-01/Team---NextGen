@@ -5,6 +5,14 @@ from app.api.routes.chat import router as chat_router
 from app.core.config import get_settings
 from app.db.session import init_db
 
+
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # This loads the variables from .env into os.environ
+api_key = os.getenv("GEMINI_API_KEY")
+
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, version="0.1.0")
