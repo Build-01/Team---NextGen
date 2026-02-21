@@ -7,7 +7,7 @@ Backend API for a health-focused AI chatbot intake flow.
 - `POST /api/v1/chat/assess` endpoint for health concern triage
 - SQLite-backed database tables for chats and symptoms
 - `GET /api/v1/chat/{chat_number}/analyze` endpoint to analyze stored chat records
-- OpenAI-backed response generation when `OPENAI_API_KEY` is set
+- Gemini-backed response generation when `GEMINI_API_KEY` is set
 - Internet evidence search from trusted medical domains for grounded condition suggestions
 - Safe fallback triage logic when no API key is configured
 
@@ -21,9 +21,10 @@ Backend API for a health-focused AI chatbot intake flow.
    ```bash
    copy .env.example .env
    ```
-4. Add your OpenAI key in `.env` (optional but recommended):
+4. Add your Gemini key in `.env` (optional but recommended):
    ```env
-   OPENAI_API_KEY=your_key_here
+   GEMINI_API_KEY=your_key_here
+   GEMINI_MODEL=gemini-2.0-flash
    DATABASE_URL=sqlite:///./healthbud.db
    ENABLE_WEB_SEARCH=true
    WEB_SEARCH_MAX_RESULTS=8

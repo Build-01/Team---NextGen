@@ -1,10 +1,8 @@
-import json
 from functools import lru_cache
-
-from openai import OpenAI
 
 from app.core.config import get_settings
 from app.models.chat import AssessmentData, ChatAssessmentRequest, UrgencyLevel
+from app.services.gemini_client import GeminiClient
 
 
 SYSTEM_PROMPT = """
@@ -23,11 +21,13 @@ urgency_level must be one of: low, medium, high, emergency.
 class ChatbotService:
     def __init__(self) -> None:
         settings = get_settings()
-        self._model = settings.openai_model
-        self._client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self._client = GeminiClient(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_model,
+        )
 
     def assess_health_input(self, payload: ChatAssessmentRequest) -> AssessmentData:
-        if self._client is None:
+        if not self._client.enabled:
             return self._fallback_assessment(payload)
 
         user_input = {
@@ -38,17 +38,11 @@ class ChatbotService:
         }
 
         try:
-            response = self._client.chat.completions.create(
-                model=self._model,
+            parsed = self._client.generate_json(
+                system_prompt=SYSTEM_PROMPT,
+                user_payload=user_input,
                 temperature=0.2,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": json.dumps(user_input)},
-                ],
             )
-            content = response.choices[0].message.content or "{}"
-            parsed = json.loads(content)
             return AssessmentData.model_validate(parsed)
         except Exception:
             return self._fallback_assessment(payload)

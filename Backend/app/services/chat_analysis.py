@@ -3,8 +3,6 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from functools import lru_cache
 
-from openai import OpenAI
-
 from app.core.config import get_settings
 from app.db.models import ChatRecord
 from app.models.chat import (
@@ -13,6 +11,7 @@ from app.models.chat import (
     StoredChatAnalysisResponse,
     UrgencyLevel,
 )
+from app.services.gemini_client import GeminiClient
 from app.services.web_search import WebSearchService
 
 ANALYSIS_PROMPT = """
@@ -35,14 +34,16 @@ Rules:
 class ChatAnalysisService:
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
-        self._model = settings.openai_model
+        self._client = GeminiClient(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_model,
+        )
         self._search_service = WebSearchService()
 
     def analyze_stored_chat(self, chat_record: ChatRecord) -> StoredChatAnalysisResponse:
         evidence = self._build_evidence(chat_record)
 
-        if self._client and evidence:
+        if self._client.enabled and evidence:
             try:
                 return self._ai_grounded_analysis(chat_record, evidence)
             except Exception:
@@ -105,18 +106,11 @@ class ChatAnalysisService:
             "evidence": evidence_payload,
         }
 
-        response = self._client.chat.completions.create(
-            model=self._model,
+        parsed = self._client.generate_json(
+            system_prompt=ANALYSIS_PROMPT,
+            user_payload=user_payload,
             temperature=0.1,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": ANALYSIS_PROMPT},
-                {"role": "user", "content": json.dumps(user_payload)},
-            ],
         )
-
-        content = response.choices[0].message.content or "{}"
-        parsed = json.loads(content)
 
         conditions: list[ConditionAnalysis] = []
         for item in parsed.get("conditions", []):
@@ -132,7 +126,7 @@ class ChatAnalysisService:
             conditions.append(
                 ConditionAnalysis(
                     condition=item.get("condition", "Unknown condition"),
-                    confidence=float(item.get("confidence", 0.2)),
+                    confidence=self._parse_confidence(item.get("confidence", 0.2)),
                     rationale=item.get("rationale", "Evidence suggests this may be related."),
                     related_symptoms=item.get("related_symptoms", []),
                     recommended_remedies=item.get("recommended_remedies", []),
@@ -159,6 +153,13 @@ class ChatAnalysisService:
                 "AI-assisted triage is not a diagnosis. Seek in-person care for severe or worsening symptoms.",
             ),
         )
+
+    def _parse_confidence(self, value: object) -> float:
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            return 0.2
+        return max(0.0, min(1.0, score))
 
     def _fallback_analysis(
         self,
