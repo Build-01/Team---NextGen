@@ -1,12 +1,15 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import selectinload
 
 from app.db.models import ChatRecord, SymptomRecord
 from app.db.session import get_db_session
-from app.models.chat import ChatAssessmentRequest, ChatAssessmentResponse
+from app.models.chat import ChatAssessmentRequest, ChatAssessmentResponse, StoredChatAnalysisResponse
+from app.services.chat_analysis import ChatAnalysisService, get_chat_analysis_service
 from app.services.chatbot import ChatbotService, get_chatbot_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -68,3 +71,21 @@ async def assess_health_concern(
         timestamp=recorded_at,
         assessment=assessment,
     )
+
+
+@router.get("/{chat_number}/analyze", response_model=StoredChatAnalysisResponse)
+async def analyze_stored_chat(
+    chat_number: int,
+    db: Session = Depends(get_db_session),
+    analysis_service: ChatAnalysisService = Depends(get_chat_analysis_service),
+) -> StoredChatAnalysisResponse:
+    statement = (
+        select(ChatRecord)
+        .options(selectinload(ChatRecord.symptoms))
+        .where(ChatRecord.chat_number == chat_number)
+    )
+    chat_record = db.execute(statement).scalars().first()
+    if chat_record is None:
+        raise HTTPException(status_code=404, detail="Chat record not found")
+
+    return analysis_service.analyze_stored_chat(chat_record)

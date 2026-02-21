@@ -63,3 +63,32 @@ class ChatAssessmentResponse(BaseModel):
     session_id: str
     timestamp: datetime
     assessment: AssessmentData
+
+
+class EvidenceSource(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+
+class ConditionAnalysis(BaseModel):
+    condition: str
+    confidence: float = Field(..., ge=0, le=1)
+    rationale: str
+    related_symptoms: list[str] = Field(default_factory=list)
+    recommended_remedies: list[str] = Field(default_factory=list)
+    doctor_specialties: list[str] = Field(default_factory=list)
+    evidence: list[EvidenceSource] = Field(default_factory=list)
+
+
+class StoredChatAnalysisResponse(BaseModel):
+    chat_number: int
+    session_id: str
+    analyzed_at: datetime
+    urgency_level: UrgencyLevel
+    urgency_reason: str
+    seek_care_within: str
+    conditions: list[ConditionAnalysis] = Field(default_factory=list)
+    recommended_remedies: list[str] = Field(default_factory=list)
+    red_flags: list[str] = Field(default_factory=list)
+    disclaimer: str

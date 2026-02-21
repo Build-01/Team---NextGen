@@ -6,7 +6,9 @@ Backend API for a health-focused AI chatbot intake flow.
 - FastAPI server with CORS enabled for frontend integration
 - `POST /api/v1/chat/assess` endpoint for health concern triage
 - SQLite-backed database tables for chats and symptoms
+- `GET /api/v1/chat/{chat_number}/analyze` endpoint to analyze stored chat records
 - OpenAI-backed response generation when `OPENAI_API_KEY` is set
+- Internet evidence search from trusted medical domains for grounded condition suggestions
 - Safe fallback triage logic when no API key is configured
 
 ## Quick start
@@ -23,6 +25,9 @@ Backend API for a health-focused AI chatbot intake flow.
    ```env
    OPENAI_API_KEY=your_key_here
    DATABASE_URL=sqlite:///./healthbud.db
+   ENABLE_WEB_SEARCH=true
+   WEB_SEARCH_MAX_RESULTS=8
+   TRUSTED_MEDICAL_DOMAINS=mayoclinic.org,medlineplus.gov,nhs.uk,who.int,cdc.gov,clevelandclinic.org,webmd.com
    ```
 5. Run the server:
    ```bash
@@ -72,6 +77,18 @@ Request body:
 ```
 
 The response returns a structured triage payload plus a stored `chat_number`.
+
+## Analyze stored chat records
+Use the persisted `chat_number` to trigger grounded analysis from DB data:
+
+- `GET /api/v1/chat/{chat_number}/analyze`
+
+Response includes:
+- condition candidates tied to stored symptom characteristics
+- confidence per condition
+- evidence links from trusted medical sources
+- recommended low-risk remedies
+- urgency assessment and how soon to seek care
 
 ## Database structure
 - `chats`
