@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./findcare.css" />
+  <title>HealthBud • Find Care</title>
+</head>
+<body>
+
+  <!-- ===== Topbar ===== -->
+  <header class="topbar">
+    <a class="back" href="./homepage.html">← Home</a>
+    <div class="brand" aria-label="HealthBud">
+      <div class="brand_mark" aria-hidden="true"></div>
+      <h1 class="brand_name">HealthBud</h1>
+    </div>
+    <button class="ghost_btn" id="refreshBtn" type="button">Refresh</button>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main class="care_shell" aria-label="Find Care">
+    <div class="care_layout">
+
+      <!-- Location Bar -->
+      <section class="location_bar" aria-label="Location">
+        <h2>Find Care Nearby</h2>
+        <p class="muted">Browse hospitals, doctors, pharmacies, and more — or pick a demo city to explore.</p>
+
+        <div class="location_controls">
+          <div class="location_status pending" id="locationStatus">
+            <span class="status_dot"></span>
+            <span id="locationText">Choose a location or use GPS</span>
+          </div>
+
+          <select class="demo_select" id="citySelect" aria-label="Choose demo city">
+            <option value="">— Pick a city —</option>
+            <option value="nyc">📍 Ibadan City</option>
+            <option value="la">📍 Edo State</option>
+            <option value="london">📍 Anambara</option>
+            <option value="lagos">📍 Lagos</option>
+            <option value="tokyo">📍 Jos</option>
+            <option value="sydney">📍 Nassarawa</option>
+          </select>
+
+          <button class="locate_btn" id="locateBtn" type="button">📍 Use My GPS</button>
+        </div>
+      </section>
+
+      <!-- Filters -->
+      <section class="filters_card" aria-label="Search filters">
+        <div class="filters_row">
+          <div class="filter_group">
+            <label>Category</label>
+            <div class="category_pills" id="categoryPills">
+              <button class="cat_pill active" type="button" data-type="all">All</button>
+              <button class="cat_pill" type="button" data-type="hospital">🏥 Hospital</button>
+              <button class="cat_pill" type="button" data-type="doctor">🩺 Doctor</button>
+              <button class="cat_pill" type="button" data-type="pharmacy">💊 Pharmacy</button>
+              <button class="cat_pill" type="button" data-type="dentist">🦷 Dentist</button>
+              <button class="cat_pill" type="button" data-type="physio">🏋️ Physio</button>
+              <button class="cat_pill" type="button" data-type="urgent">⚡ Urgent Care</button>
+            </div>
+          </div>
+
+          <div class="filter_group">
+            <label>Radius</label>
+            <div class="radius_control">
+              <input type="range" id="radiusSlider" min="1" max="50" step="1" value="15" />
+              <span class="radius_value" id="radiusLabel">15 km</span>
+            </div>
+          </div>
+
+          <div class="filter_group" style="flex:1; min-width:160px;">
+            <label>Search</label>
+            <input class="keyword_input" id="keywordInput" type="text" placeholder="e.g. pediatric, emergency…" aria-label="Keyword filter" />
+          </div>
+
+          <button class="search_btn" id="searchBtn" type="button">Search</button>
+        </div>
+      </section>
+
+      <!-- Map -->
+      <section class="map_card" aria-label="Map view">
+        <div class="map_container" id="mapContainer">
+          <div class="map_placeholder" id="mapPlaceholder">
+            <span class="map_icon">🗺️</span>
+            <span>Select a location to see the map</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="results_card" aria-label="Results">
+        <div class="results_header">
+          <h2>Results</h2>
+          <span class="result_count" id="resultCount"></span>
+          <select class="sort_select" id="sortSelect" aria-label="Sort results">
+            <option value="distance">Sort: Nearest</option>
+            <option value="rating">Sort: Top Rated</option>
+            <option value="name">Sort: A → Z</option>
+            <option value="open">Sort: Open First</option>
+          </select>
+        </div>
+        <div class="results_grid" id="resultsGrid">
+          <div class="empty">
+            <h3>No results yet</h3>
+            <p>Pick a demo city or use GPS, then search to find care options.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // ═══════════════════════════════════════
+    // 0) Auth guard
+    // ═══════════════════════════════════════
+    const token = localStorage.getItem("hb_token");
+    if (!token) window.location.href = "./getstarted.html";
+
+    // ═══════════════════════════════════════
+    // 1) DEMO DATA
+    // ═══════════════════════════════════════
+
+    const DEMO_CITIES = {
+      nyc:    { name: "New York City",  lat: 40.7128,   lng: -74.0060  },
+      la:     { name: "Los Angeles",    lat: 34.0522,   lng: -118.2437 },
+      london: { name: "London",         lat: 51.5074,   lng: -0.1278   },
+      lagos:  { name: "Lagos",          lat: 6.5244,    lng: 3.3792    },
+      tokyo:  { name: "Tokyo",          lat: 35.6762,   lng: 139.6503  },
+      sydney: { name: "Sydney",         lat: -33.8688,  lng: 151.2093  },
+    };
+
+    const DEMO_PLACES = [
+      // ──── New York City ────
+      { name:"NYU Langone Hospital",            address:"550 1st Ave, New York, NY 10016",           lat:40.7421, lng:-73.9739, rating:4.6, open:true,  type:"hospital", tags:["emergency","trauma","icu"] },
+      { name:"Mount Sinai Hospital",            address:"1 Gustave L Levy Pl, New York, NY 10029",   lat:40.7900, lng:-73.9526, rating:4.5, open:true,  type:"hospital", tags:["cardiology","oncology","emergency"] },
+      { name:"NYC Health + Hospitals — Bellevue",address:"462 1st Ave, New York, NY 10016",          lat:40.7392, lng:-73.9754, rating:4.2, open:true,  type:"hospital", tags:["public","emergency","psychiatric"] },
+      { name:"Dr. Sarah Chen — Internal Medicine",address:"88 7th Ave, New York, NY 10011",          lat:40.7408, lng:-73.9997, rating:4.9, open:true,  type:"doctor",   tags:["internal medicine","primary care"] },
+      { name:"Dr. James Okafor — Family Medicine",address:"212 E 70th St, New York, NY 10021",      lat:40.7681, lng:-73.9614, rating:4.7, open:true,  type:"doctor",   tags:["family medicine","pediatric"] },
+      { name:"Dr. Maria Lopez — Dermatology",    address:"635 Madison Ave, New York, NY 10022",      lat:40.7640, lng:-73.9720, rating:4.6, open:false, type:"doctor",   tags:["dermatology","skin","cosmetic"] },
+      { name:"Dr. David Kim — Cardiology",        address:"300 E 66th St, New York, NY 10065",       lat:40.7654, lng:-73.9625, rating:4.8, open:true,  type:"doctor",   tags:["cardiology","heart","ecg"] },
+      { name:"CVS Pharmacy — Times Square",       address:"1600 Broadway, New York, NY 10019",       lat:40.7590, lng:-73.9845, rating:4.1, open:true,  type:"pharmacy", tags:["24 hour","prescriptions","flu shot"] },
+      { name:"Duane Reade — Financial District",   address:"250 Broadway, New York, NY 10007",       lat:40.7133, lng:-74.0070, rating:3.9, open:true,  type:"pharmacy", tags:["prescriptions","walk-in"] },
+      { name:"Rite Aid — Upper West Side",         address:"2833 Broadway, New York, NY 10025",      lat:40.8032, lng:-73.9680, rating:3.7, open:false, type:"pharmacy", tags:["prescriptions","vitamins"] },
+      { name:"Bright Smile Dental — Midtown",     address:"30 E 40th St, New York, NY 10016",       lat:40.7512, lng:-73.9805, rating:4.7, open:true,  type:"dentist",  tags:["cleaning","orthodontics","implants"] },
+      { name:"Dr. Emily Park — Pediatric Dentist", address:"110 E 55th St, New York, NY 10022",     lat:40.7607, lng:-73.9690, rating:4.8, open:false, type:"dentist",  tags:["pediatric","cosmetic","invisalign"] },
+      { name:"ActiveCare Physical Therapy",        address:"315 W 57th St, New York, NY 10019",      lat:40.7655, lng:-73.9840, rating:4.6, open:true,  type:"physio",   tags:["sports injury","rehab","acl"] },
+      { name:"CityWell Urgent Care — Chelsea",    address:"200 W 14th St, New York, NY 10011",      lat:40.7380, lng:-74.0000, rating:4.3, open:true,  type:"urgent",   tags:["urgent care","walk-in","x-ray","lab"] },
+      { name:"GoHealth Urgent Care — UES",        address:"1400 2nd Ave, New York, NY 10021",       lat:40.7712, lng:-73.9575, rating:4.4, open:true,  type:"urgent",   tags:["urgent care","covid test","strep"] },
+
+      // ──── Los Angeles ────
+      { name:"Cedars-Sinai Medical Center",       address:"8700 Beverly Blvd, Los Angeles, CA 90048",lat:34.0754, lng:-118.3803, rating:4.6, open:true,  type:"hospital", tags:["emergency","trauma","research"] },
+      { name:"UCLA Medical Center",                address:"757 Westwood Plaza, LA, CA 90095",       lat:34.0660, lng:-118.4462, rating:4.7, open:true,  type:"hospital", tags:["teaching","emergency","transplant"] },
+      { name:"Dr. Kevin Patel — Pediatrics",       address:"9033 Wilshire Blvd, Beverly Hills, CA",  lat:34.0696, lng:-118.3890, rating:4.9, open:true,  type:"doctor",   tags:["pediatrics","children","immunization"] },
+      { name:"Dr. Linda Tran — OB/GYN",            address:"8920 Wilshire Blvd, Beverly Hills, CA",  lat:34.0685, lng:-118.3875, rating:4.7, open:true,  type:"doctor",   tags:["ob/gyn","women's health","prenatal"] },
+      { name:"Dr. Carlos Rivera — Orthopedics",    address:"6801 Park Terrace, LA, CA 90045",        lat:34.0025, lng:-118.3965, rating:4.5, open:false, type:"doctor",   tags:["orthopedics","sports medicine","knee"] },
+      { name:"Walgreens — Hollywood",              address:"6150 Sunset Blvd, Hollywood, CA 90028",  lat:34.0977, lng:-118.3286, rating:4.0, open:true,  type:"pharmacy", tags:["prescriptions","flu shot","24 hour"] },
+      { name:"SmileLab Dental — Santa Monica",     address:"1437 4th St, Santa Monica, CA 90401",   lat:34.0163, lng:-118.4945, rating:4.7, open:true,  type:"dentist",  tags:["whitening","invisalign","cosmetic"] },
+      { name:"LA Sports Physiotherapy",             address:"2100 Sawtelle Blvd, LA, CA 90025",      lat:34.0411, lng:-118.4419, rating:4.5, open:false, type:"physio",   tags:["sports physio","rehab","knee"] },
+      { name:"AFC Urgent Care — West Hollywood",    address:"8500 Santa Monica Blvd, LA, CA 90069", lat:34.0901, lng:-118.3714, rating:4.2, open:true,  type:"urgent",   tags:["urgent care","flu","lab test","x-ray"] },
+
+      // ──── London ────
+      { name:"St Thomas' Hospital",                address:"Westminster Bridge Rd, London SE1 7EH",  lat:51.4987, lng:-0.1174, rating:4.4, open:true,  type:"hospital", tags:["nhs","emergency","a&e"] },
+      { name:"Royal Free Hospital",                 address:"Pond St, Hampstead, London NW3 2QG",    lat:51.5536, lng:-0.1655, rating:4.3, open:true,  type:"hospital", tags:["nhs","hepatology","emergency"] },
+      { name:"Dr. Aisha Rahman — GP",               address:"42 Harley St, London W1G 9PR",          lat:51.5198, lng:-0.1483, rating:4.8, open:true,  type:"doctor",   tags:["gp","general practice","nhs"] },
+      { name:"Dr. Oliver Campbell — Neurology",     address:"33 Weymouth St, London W1G 7BY",        lat:51.5211, lng:-0.1484, rating:4.7, open:false, type:"doctor",   tags:["neurology","migraine","epilepsy"] },
+      { name:"Boots Pharmacy — Oxford Street",      address:"361 Oxford St, London W1C 2JL",         lat:51.5154, lng:-0.1482, rating:4.0, open:true,  type:"pharmacy", tags:["prescriptions","nhs","vitamins"] },
+      { name:"Superdrug — Covent Garden",           address:"120 Long Acre, London WC2E 9PA",        lat:51.5125, lng:-0.1247, rating:3.8, open:true,  type:"pharmacy", tags:["prescriptions","skincare"] },
+      { name:"Bupa Dental — City of London",        address:"20 Fenchurch St, London EC3M 3BY",      lat:51.5123, lng:-0.0838, rating:4.5, open:true,  type:"dentist",  tags:["nhs","private","orthodontics"] },
+      { name:"PhysioWorks — Canary Wharf",          address:"1 Canada Square, London E14 5AB",       lat:51.5049, lng:-0.0187, rating:4.6, open:true,  type:"physio",   tags:["rehab","back pain","sports"] },
+      { name:"NHS Walk-In Centre — Soho",           address:"1 Frith St, London W1D 3HZ",            lat:51.5137, lng:-0.1317, rating:4.1, open:true,  type:"urgent",   tags:["walk-in","nhs","minor injuries"] },
+
+      // ──── Lagos ────
+      { name:"Lagos University Teaching Hospital",  address:"Ishaga Rd, Idi-Araba, Lagos",           lat:6.5100, lng:3.3560, rating:4.0, open:true,  type:"hospital", tags:["teaching","emergency","public"] },
+      { name:"Reddington Hospital",                 address:"12 Idowu Martins St, Victoria Island",  lat:6.4281, lng:3.4219, rating:4.5, open:true,  type:"hospital", tags:["private","emergency","maternity"] },
+      { name:"Dr. Adebayo Oluwaseun — GP",          address:"15 Admiralty Way, Lekki Phase 1",       lat:6.4378, lng:3.4725, rating:4.6, open:true,  type:"doctor",   tags:["general practice","family"] },
+      { name:"Dr. Chioma Eze — Pediatrics",          address:"22 Isaac John St, GRA Ikeja",          lat:6.5812, lng:3.3449, rating:4.7, open:false, type:"doctor",   tags:["pediatrics","children","vaccinations"] },
+      { name:"MedPlus Pharmacy — Lekki",             address:"The Palms, 1 Bisola Durosinmi Etti",   lat:6.4311, lng:3.4530, rating:4.2, open:true,  type:"pharmacy", tags:["prescriptions","24 hour"] },
+      { name:"Smile360 Dental — Victoria Island",    address:"Plot 1, Block 1, Ajose Adeogun",       lat:6.4285, lng:3.4155, rating:4.4, open:true,  type:"dentist",  tags:["cosmetic","orthodontics","implants"] },
+      { name:"PhysioNaija — Ikoyi",                  address:"18 Bourdillon Rd, Ikoyi, Lagos",       lat:6.4500, lng:3.4291, rating:4.3, open:true,  type:"physio",   tags:["rehab","sports","back pain"] },
+      { name:"EHA Clinics — Lekki",                  address:"3 Omon Ebhomenye St, Lekki Phase 1",   lat:6.4340, lng:3.4710, rating:4.5, open:true,  type:"urgent",   tags:["urgent care","lab","walk-in"] },
+
+      // ──── Tokyo ────
+      { name:"University of Tokyo Hospital",        address:"7-3-1 Hongo, Bunkyo City, Tokyo",       lat:35.7120, lng:139.7630, rating:4.3, open:true,  type:"hospital", tags:["teaching","emergency","research"] },
+      { name:"St. Luke's International Hospital",   address:"9-1 Akashicho, Chuo City, Tokyo",       lat:35.6672, lng:139.7738, rating:4.6, open:true,  type:"hospital", tags:["international","emergency","english-speaking"] },
+      { name:"Dr. Yuki Tanaka — Internal Medicine",  address:"2-4-1 Marunouchi, Chiyoda, Tokyo",     lat:35.6812, lng:139.7671, rating:4.8, open:true,  type:"doctor",   tags:["internal medicine","english-speaking"] },
+      { name:"Dr. Hiroshi Sato — Orthopedics",       address:"1-6-3 Roppongi, Minato, Tokyo",        lat:35.6627, lng:139.7310, rating:4.5, open:false, type:"doctor",   tags:["orthopedics","sports","rehabilitation"] },
+      { name:"Matsumoto Kiyoshi — Shibuya",          address:"21-12 Udagawacho, Shibuya, Tokyo",     lat:35.6607, lng:139.6983, rating:4.1, open:true,  type:"pharmacy", tags:["prescriptions","otc","cosmetics"] },
+      { name:"Tokyo Dental Clinic — Shinjuku",       address:"3-17-5 Shinjuku, Shinjuku City",       lat:35.6892, lng:139.7008, rating:4.4, open:true,  type:"dentist",  tags:["english-speaking","cleaning","implants"] },
+      { name:"Tokyo Bay Rehab Physio",               address:"1-8-2 Toyosu, Koto City, Tokyo",       lat:35.6539, lng:139.7960, rating:4.5, open:true,  type:"physio",   tags:["rehab","stroke recovery","geriatric"] },
+      { name:"Midtown Clinic — Roppongi",            address:"9-7-1 Akasaka, Minato, Tokyo",         lat:35.6657, lng:139.7312, rating:4.6, open:true,  type:"urgent",   tags:["walk-in","english-speaking","x-ray"] },
+
+      // ──── Sydney ────
+      { name:"Royal Prince Alfred Hospital",         address:"50 Missenden Rd, Camperdown NSW 2050", lat:-33.8893, lng:151.1815, rating:4.3, open:true,  type:"hospital", tags:["emergency","trauma","public"] },
+      { name:"St Vincent's Hospital Sydney",         address:"390 Victoria St, Darlinghurst NSW",    lat:-33.8796, lng:151.2198, rating:4.4, open:true,  type:"hospital", tags:["emergency","cardiac","public"] },
+      { name:"Dr. Emma Wilson — GP",                  address:"180 Elizabeth St, Sydney NSW 2000",    lat:-33.8715, lng:151.2094, rating:4.8, open:true,  type:"doctor",   tags:["gp","general practice","bulk billing"] },
+      { name:"Dr. Rajesh Gupta — Endocrinology",     address:"225 Macquarie St, Sydney NSW 2000",    lat:-33.8678, lng:151.2135, rating:4.6, open:false, type:"doctor",   tags:["endocrinology","diabetes","thyroid"] },
+      { name:"Priceline Pharmacy — CBD",              address:"74 Castlereagh St, Sydney NSW 2000",  lat:-33.8713, lng:151.2100, rating:4.0, open:true,  type:"pharmacy", tags:["prescriptions","vitamins","beauty"] },
+      { name:"Sydney Dental Hospital",                address:"2 Chalmers St, Surry Hills NSW 2010", lat:-33.8833, lng:151.2092, rating:4.2, open:true,  type:"dentist",  tags:["public","emergency dental","oral surgery"] },
+      { name:"LifeCare Physiotherapy — CBD",           address:"333 George St, Sydney NSW 2000",     lat:-33.8688, lng:151.2070, rating:4.7, open:true,  type:"physio",   tags:["rehab","pilates","sports"] },
+      { name:"National Home Doctor — After Hours",     address:"Sydney-wide home visits",             lat:-33.8688, lng:151.2093, rating:4.3, open:true,  type:"urgent",   tags:["after hours","home visit","bulk billing"] },
+    ];
+
+    // ═══════════════════════════════════════
+    // 2) State
+    // ═══════════════════════════════════════
+    let userLat = null;
+    let userLng = null;
+    let cityName = "";
+    let selectedType = "all";
+    let filteredPlaces = [];
+
+    // ═══════════════════════════════════════
+    // 3) DOM
+    // ═══════════════════════════════════════
+    const locationStatus  = document.getElementById("locationStatus");
+    const locationText    = document.getElementById("locationText");
+    const locateBtn       = document.getElementById("locateBtn");
+    const citySelect      = document.getElementById("citySelect");
+    const searchBtn       = document.getElementById("searchBtn");
+    const refreshBtn      = document.getElementById("refreshBtn");
+    const categoryPills   = document.getElementById("categoryPills");
+    const radiusSlider    = document.getElementById("radiusSlider");
+    const radiusLabel     = document.getElementById("radiusLabel");
+    const keywordInput    = document.getElementById("keywordInput");
+    const sortSelect      = document.getElementById("sortSelect");
+    const mapContainer    = document.getElementById("mapContainer");
+    const resultsGrid     = document.getElementById("resultsGrid");
+    const resultCount     = document.getElementById("resultCount");
+
+    // ═══════════════════════════════════════
+    // 4) Helpers
+    // ═══════════════════════════════════════
+    function escapeHtml(s){
+      return s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    }
+
+    function haversine(lat1, lng1, lat2, lng2){
+      const R = 6371;
+      const dLat = (lat2-lat1)*Math.PI/180;
+      const dLng = (lng2-lng1)*Math.PI/180;
+      const a = Math.sin(dLat/2)**2
+              + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)
+              * Math.sin(dLng/2)**2;
+      return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function fmtDist(km){
+      return km < 1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
+    }
+
+    function stars(r){
+      if(!r) return "";
+      const f=Math.floor(r), h=r-f>=0.5?1:0, e=5-f-h;
+      return "★".repeat(f)+(h?"½":"")+"☆".repeat(e);
+    }
+
+    function setLocation(type, text){
+      locationStatus.className = `location_status ${type}`;
+      locationText.textContent = text;
+    }
+
+    // ═══════════════════════════════════════
+    // 5) Location — Demo city selector
+    // ═══════════════════════════════════════
+    citySelect.addEventListener("change", () => {
+      const key = citySelect.value;
+      if (!key) return;
+
+      const city = DEMO_CITIES[key];
+      userLat = city.lat;
+      userLng = city.lng;
+      cityName = city.name;
+
+      setLocation("success", `📍 ${city.name} — ${city.lat.toFixed(4)}, ${city.lng.toFixed(4)}`);
+      runSearch();
+    });
+
+    // ═══════════════════════════════════════
+    // 6) Location — GPS
+    // ═══════════════════════════════════════
+    locateBtn.addEventListener("click", () => {
+      if (!navigator.geolocation){
+        setLocation("error", "Geolocation not supported by your browser.");
+        return;
+      }
+
+      setLocation("pending", "Requesting GPS location…");
+      locateBtn.disabled = true;
+      locateBtn.textContent = "Locating…";
+
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+          cityName = "Your Location";
+          citySelect.value = "";
+
+          setLocation("success", `📍 GPS — ${userLat.toFixed(4)}, ${userLng.toFixed(4)}`);
+          locateBtn.disabled = false;
+          locateBtn.textContent = "📍 Update GPS";
+          runSearch();
+        },
+        err => {
+          const msgs = {
+            1: "Location permission denied. Please allow access or pick a demo city.",
+            2: "Location unavailable. Try a demo city instead.",
+            3: "Location request timed out. Try again or pick a demo city.",
+          };
+          setLocation("error", msgs[err.code] || "Could not get location.");
+          locateBtn.disabled = false;
+          locateBtn.textContent = "📍 Try Again";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+
+    // ═══════════════════════════════════════
+    // 7) Category pills
+    // ═══════════════════════════════════════
+    categoryPills.addEventListener("click", e => {
+      const pill = e.target.closest(".cat_pill");
+      if (!pill) return;
+      categoryPills.querySelectorAll(".cat_pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      selectedType = pill.dataset.type;
+      if (userLat !== null) runSearch();
+    });
+
+    // ═══════════════════════════════════════
+    // 8) Radius slider
+    // ═══════════════════════════════════════
+    function updateRadiusLabel(){
+      radiusLabel.textContent = `${radiusSlider.value} km`;
+    }
+    radiusSlider.addEventListener("input", updateRadiusLabel);
+    radiusSlider.addEventListener("change", () => { if (userLat !== null) runSearch(); });
+    updateRadiusLabel();
+
+    // ═══════════════════════════════════════
+    // 9) Sort selector
+    // ═══════════════════════════════════════
+    sortSelect.addEventListener("change", () => {
+      if (filteredPlaces.length) renderResults(filteredPlaces);
+    });
+
+    // ═══════════════════════════════════════
+    // 10) Search / Filter logic
+    // ═══════════════════════════════════════
+    searchBtn.addEventListener("click", () => { if (userLat !== null) runSearch(); });
+    keywordInput.addEventListener("keydown", e => {
+      if (e.key === "Enter" && userLat !== null){ e.preventDefault(); runSearch(); }
+    });
+    refreshBtn.addEventListener("click", () => { if (userLat !== null) runSearch(); });
+
+    function runSearch(){
+      const radius = parseInt(radiusSlider.value);
+      const keyword = keywordInput.value.trim().toLowerCase();
+
+      // Filter demo data
+      filteredPlaces = DEMO_PLACES.filter(p => {
+        // Distance
+        const dist = haversine(userLat, userLng, p.lat, p.lng);
+        if (dist > radius) return false;
+
+        // Type
+        if (selectedType !== "all" && p.type !== selectedType) return false;
+
+        // Keyword
+        if (keyword){
+          const haystack = `${p.name} ${p.address} ${p.tags.join(" ")}`.toLowerCase();
+          if (!haystack.includes(keyword)) return false;
+        }
+
+        return true;
+      });
+
+      // Attach distance for display
+      filteredPlaces = filteredPlaces.map(p => ({
+        ...p,
+        distance: haversine(userLat, userLng, p.lat, p.lng),
+      }));
+
+      updateMap();
+      renderResults(filteredPlaces);
+    }
+
+    // ═══════════════════════════════════════
+    // 11) Map (OpenStreetMap, no key needed)
+    // ═══════════════════════════════════════
+    function updateMap(){
+      if (userLat === null) return;
+
+      const bbox = `${userLng-0.06},${userLat-0.04},${userLng+0.06},${userLat+0.04}`;
+      const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${userLat},${userLng}`;
+      mapContainer.innerHTML = `<iframe src="${src}" allowfullscreen loading="lazy" title="Map" style="width:100%;height:100%;border:none;"></iframe>`;
+    }
+
+    // ═══════════════════════════════════════
+    // 12) Render results
+    // ═══════════════════════════════════════
+    function renderResults(places){
+      if (!places.length){
+        resultsGrid.innerHTML = `
+          <div class="empty">
+            <h3>No places found</h3>
+            <p>Try increasing the radius, changing the category, or adjusting your keyword.</p>
+          </div>`;
+        resultCount.textContent = "0 results";
+        return;
+      }
+
+      // Sort
+      const sort = sortSelect.value;
+      const sorted = [...places].sort((a, b) => {
+        if (sort === "distance") return a.distance - b.distance;
+        if (sort === "rating")   return (b.rating||0) - (a.rating||0);
+        if (sort === "name")     return a.name.localeCompare(b.name);
+        if (sort === "open")     return (b.open?1:0) - (a.open?1:0) || a.distance - b.distance;
+        return 0;
+      });
+
+      resultCount.textContent = `${sorted.length} result${sorted.length!==1?"s":""}`;
+
+      const typeEmoji = { hospital:"🏥", doctor:"🩺", pharmacy:"💊", dentist:"🦷", physio:"🏋️", urgent:"⚡" };
+
+      resultsGrid.innerHTML = sorted.map(p => {
+        const statusClass = p.open ? "open" : "closed";
+        const statusText  = p.open ? "Open now" : "Closed";
+        const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+
+        return `
+          <article class="place_card">
+            <div class="place_top">
+              <span class="place_name">${escapeHtml(p.name)}</span>
+              <span class="place_status ${statusClass}">${statusText}</span>
+            </div>
+
+            <p class="place_address">${escapeHtml(p.address)}</p>
+
+            <span class="place_type_badge">${typeEmoji[p.type]||""} ${p.type}</span>
+
+            <div class="place_bottom">
+              <div class="place_rating">
+                ${p.rating
+                  ? `<span class="stars">${stars(p.rating)}</span><span class="rating_num">${p.rating}</span>`
+                  : `<span class="rating_num" style="color:var(--muted)">No rating</span>`}
+              </div>
+              <span class="place_distance">${fmtDist(p.distance)}</span>
+              <a class="directions_btn" href="${dirUrl}" target="_blank" rel="noopener noreferrer">Directions →</a>
+            </div>
+          </article>`;
+      }).join("");
+    }
+  </script>
+</body>
+</html>
