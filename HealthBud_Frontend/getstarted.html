@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./getstarted.css" />
+  <title>HealthBud • Get Started</title>
+</head>
+<body>
+  <div class="auth">
+    <header class="auth_header">
+      <a class="back" href="./index.html">← Back</a>
+      <h1>Health<span>Bud</span></h1>
+    </header>
+
+    <main class="auth_card">
+      <div class="tabs" role="tablist" aria-label="Authentication">
+        <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="signup">
+          Sign Up
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="login">
+          Log In
+        </button>
+      </div>
+
+      <!-- SIGN UP -->
+      <section class="panel" data-panel="signup">
+        <h2>Create account</h2>
+
+        <form id="signupForm" novalidate>
+          <label for="su_name">Full Name</label>
+          <input id="su_name" name="name" type="text" placeholder="Your name" required />
+
+          <label for="su_email">Email</label>
+          <input id="su_email" name="email" type="email" placeholder="you@email.com" required />
+
+          <label for="su_password">Password</label>
+          <div class="input_row">
+            <input id="su_password" name="password" type="password" placeholder="Min 8 characters" minlength="8" required />
+            <button class="icon_btn" type="button" data-toggle="su_password" aria-label="Show password">Show</button>
+          </div>
+
+          <p class="error" id="signupError" aria-live="polite"></p>
+
+          <button id="signupSubmit" type="submit">Sign Up</button>
+          <p class="helper">By continuing, you agree to our Terms & Privacy Policy.</p>
+        </form>
+      </section>
+
+      <!-- LOG IN -->
+      <section class="panel hidden" data-panel="login">
+        <h2>Welcome back</h2>
+
+        <form id="loginForm" novalidate>
+          <label for="li_email">Email</label>
+          <input id="li_email" name="email" type="email" placeholder="you@email.com" required />
+
+          <label for="li_password">Password</label>
+          <div class="input_row">
+            <input id="li_password" name="password" type="password" placeholder="Your password" required />
+            <button class="icon_btn" type="button" data-toggle="li_password" aria-label="Show password">Show</button>
+          </div>
+
+          <p class="error" id="loginError" aria-live="polite"></p>
+
+          <button id="loginSubmit" type="submit">Log In</button>
+          <a class="forgot" href="#">Forgot password?</a>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    const tabs = document.querySelectorAll(".tab");
+    const panels = document.querySelectorAll("[data-panel]");
+
+    function setActive(tabName){
+      tabs.forEach(t => {
+        const active = t.dataset.tab === tabName;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+      });
+
+      panels.forEach(p => {
+        const show = p.dataset.panel === tabName;
+        p.classList.toggle("hidden", !show);
+      });
+    }
+
+    tabs.forEach(t => t.addEventListener("click", () => setActive(t.dataset.tab)));
+
+    // Show/Hide password
+    document.querySelectorAll("[data-toggle]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-toggle");
+        const input = document.getElementById(id);
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+        btn.textContent = isPassword ? "Hide" : "Show";
+      });
+    });
+
+    // Basic client-side validation (demo functional)
+    function showError(el, msg){ el.textContent = msg || ""; }
+
+    document.getElementById("signupForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = document.getElementById("su_name");
+      const email = document.getElementById("su_email");
+      const pass = document.getElementById("su_password");
+      const err = document.getElementById("signupError");
+
+      if(!name.value.trim()) return showError(err, "Please enter your full name.");
+      if(!email.checkValidity()) return showError(err, "Please enter a valid email address.");
+      if(pass.value.length < 8) return showError(err, "Password must be at least 8 characters.");
+      showError(err, "");
+
+      // Replace with real backend call later
+      alert("Sign up successful (demo). Next: connect to backend.");
+    });
+
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("li_email");
+      const pass = document.getElementById("li_password");
+      const err = document.getElementById("loginError");
+
+      if(!email.checkValidity()) return showError(err, "Please enter a valid email address.");
+      if(!pass.value) return showError(err, "Please enter your password.");
+      showError(err, "");
+
+      // Replace with real backend call later
+      alert("Login successful (demo). Next: redirect to app dashboard.");
+    });
+  </script>
+</body>
+</html>

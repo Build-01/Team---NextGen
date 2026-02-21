@@ -1,32 +1,55 @@
+
+
+
+
+
+
+
 *{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Header */
+:root{
+  --teal:#0F766E;
+  --cyan:#67E8F9;
+  --bg:#F8FAFC;
+  --text:#0F172A;
+  --muted:#64748B;
+}
+
+body{
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ===== Header ===== */
 .header{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30px 10%;
+  padding: 22px 10%;
 }
 
+/* Make the "logo" look more premium */
 .logo h1{
-  color: #0F766E;
+  color: var(--teal);
   font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.6px;
+  line-height: 1;
 }
 
-/* Button */
+/* ===== Button ===== */
 button{
   color: white;
-  background-color: #0F766E;
-  border-style: none;
+  background-color: var(--teal);
+  border: none;
   width: 150px;
-  height: 38px;
-  border-radius: 10px;
+  height: 38px;              /* a bit taller than 30px */
+  border-radius: 10px;       /* softer */
   font-weight: 700;
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
@@ -43,14 +66,14 @@ button:active{
   box-shadow: 0 6px 14px rgba(15,118,110,0.16);
 }
 
-/* Main container (hero) */
+/* ===== Main container (hero) ===== */
 .min_cont{
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 48px;
   padding: 30px 10%;
-  min-height: calc(100vh - 90px);
+  min-height: calc(100vh - 90px); /* balances page height under header */
 }
 
 /* Left side */
@@ -62,25 +85,25 @@ button:active{
   font-size: clamp(42px, 5vw, 72px);
   letter-spacing: -1.2px;
   line-height: 1.05;
-  color: #0F172A;
+  color: var(--text);
 }
 
 .min_cont_1 h1 span{
-  color: #0F766E;
+  color: var(--teal);
 }
 
 .min_cont_1 p{
   margin-top: 12px;
   font-size: clamp(16px, 2vw, 20px);
-  color: #64748B;
+  color: var(--muted);
 }
 
 .min_cont_1 p span{
-  color: #0F766E;
+  color: var(--teal);
   font-weight: 700;
 }
 
-/* Right side */
+/* Right side image */
 .min_cont_2{
   width: 50%;
   display: flex;
@@ -91,4 +114,32 @@ button:active{
   width: min(520px, 100%);
   height: auto;
   display: block;
+  filter: drop-shadow(0 22px 30px rgba(15,23,42,0.14));
+}
+
+/* ===== Responsive (mobile) ===== */
+@media (max-width: 900px){
+  .header{
+    padding: 18px 6%;
+  }
+
+  .min_cont{
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 26px 6%;
+    gap: 24px;
+    min-height: auto;
+  }
+
+  .min_cont_1, .min_cont_2{
+    width: 100%;
+  }
+
+  .min_cont_2{
+    justify-content: center;
+  }
+
+  button{
+    width: 140px;
+  }
 }
