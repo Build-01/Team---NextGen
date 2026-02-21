@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -9,11 +10,17 @@ class Settings(BaseSettings):
     debug: bool = True
     database_url: str = "sqlite:///./healthbud.db"
 
+    llm_provider: str = "openrouter"
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openrouter/auto"
+    openrouter_site_url: str = "http://localhost:5500"
+    openrouter_app_name: str = "HealthBud"
+
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.0-flash"
     enable_web_search: bool = True
     web_search_max_results: int = 8
-    trusted_medical_domains: list[str] = Field(default_factory=lambda: [
+    trusted_medical_domains: Annotated[list[str], NoDecode] = Field(default_factory=lambda: [
         "mayoclinic.org",
         "medlineplus.gov",
         "nhs.uk",
@@ -23,7 +30,7 @@ class Settings(BaseSettings):
         "webmd.com",
     ])
 
-    cors_origins: list[str] = Field(default_factory=lambda: [
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: [
         "http://localhost:3000",
         "http://127.0.0.1:5500",
     ])

@@ -11,7 +11,7 @@ from app.models.chat import (
     StoredChatAnalysisResponse,
     UrgencyLevel,
 )
-from app.services.gemini_client import GeminiClient
+from app.services.gemini_client import LLMClient
 from app.services.web_search import WebSearchService
 
 ANALYSIS_PROMPT = """
@@ -34,9 +34,15 @@ Rules:
 class ChatAnalysisService:
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = GeminiClient(
-            api_key=settings.gemini_api_key,
-            model=settings.gemini_model,
+        provider = settings.llm_provider.strip().lower()
+        api_key = settings.openrouter_api_key if provider == "openrouter" else settings.gemini_api_key
+        model = settings.openrouter_model if provider == "openrouter" else settings.gemini_model
+        self._client = LLMClient(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            app_name=settings.openrouter_app_name,
+            site_url=settings.openrouter_site_url,
         )
         self._search_service = WebSearchService()
 
