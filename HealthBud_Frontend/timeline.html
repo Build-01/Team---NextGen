@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./timeline.css" />
+  <title>HealthBud • Timeline</title>
+</head>
+<body>
+
+  <!-- ===== Topbar ===== -->
+  <header class="topbar">
+    <a class="back" href="./homepage.html">← Home</a>
+
+    <div class="brand" aria-label="HealthBud">
+      <div class="brand_mark" aria-hidden="true"></div>
+      <h1 class="brand_name">HealthBud</h1>
+    </div>
+
+    <button class="ghost_btn" id="refreshBtn" type="button">Refresh</button>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main class="timeline_shell" aria-label="Symptom Timeline">
+    <div class="timeline_layout">
+
+      <!-- Log Form -->
+      <section class="log_card" aria-label="Log a symptom">
+        <h2>Log a symptom</h2>
+        <p class="muted">Track what you're feeling so you can spot patterns over time.</p>
+
+        <form class="log_form" id="logForm" autocomplete="off">
+          <div class="field">
+            <label for="symptomInput">Symptom</label>
+            <input id="symptomInput" type="text" placeholder="e.g. Headache, Nausea" required />
+          </div>
+
+          <div class="field">
+            <label for="severityInput">Severity</label>
+            <input id="severityInput" type="range" min="0" max="10" step="0.5" value="5" />
+            <div class="severity_display mid" id="severityLabel">5 / 10</div>
+          </div>
+
+          <div class="field">
+            <label for="notesInput">Notes (optional)</label>
+            <input id="notesInput" type="text" placeholder="Any extra details…" />
+          </div>
+
+          <button class="log_btn" type="submit" id="logBtn">+ Log</button>
+
+          <p class="log_error" id="logError" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- Stats Row -->
+      <section class="stats_row" id="statsRow" aria-label="Symptom statistics">
+        <div class="stat_card">
+          <div class="stat_label">Total Logs</div>
+          <div class="stat_value" id="statTotal">–</div>
+          <div class="stat_sub">all time</div>
+        </div>
+
+        <div class="stat_card">
+          <div class="stat_label">Unique Symptoms</div>
+          <div class="stat_value" id="statUnique">–</div>
+          <div class="stat_sub">tracked</div>
+        </div>
+
+        <div class="stat_card">
+          <div class="stat_label">Avg Severity</div>
+          <div class="stat_value" id="statAvg">–</div>
+          <div class="stat_sub">across all logs</div>
+        </div>
+
+        <div class="stat_card">
+          <div class="stat_label">Most Frequent</div>
+          <div class="stat_value" id="statTop" style="font-size:20px;">–</div>
+          <div class="stat_sub" id="statTopCount"></div>
+        </div>
+      </section>
+
+      <!-- Symptom Breakdown -->
+      <section class="breakdown_card" id="breakdownSection" aria-label="Symptom breakdown">
+        <h2>Symptom Breakdown</h2>
+        <div class="breakdown_list" id="breakdownList">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section class="history_card" aria-label="Symptom history">
+        <div class="history_header">
+          <h2>History</h2>
+          <div class="filter_row">
+            <input
+              class="filter_input"
+              id="filterInput"
+              type="text"
+              placeholder="Filter by symptom…"
+              aria-label="Filter symptoms"
+            />
+          </div>
+        </div>
+
+        <div id="historyContainer">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="./auth.js"></script>
+  <script>
+    // ─────────────────────────────────
+    // 0) Auth guard
+    // ─────────────────────────────────
+    const token = localStorage.getItem("hb_token");
+    if (!token) window.location.href = "./getstarted.html";
+
+    // ─────────────────────────────────
+    // 1) DOM references
+    // ─────────────────────────────────
+    const logForm        = document.getElementById("logForm");
+    const symptomInput   = document.getElementById("symptomInput");
+    const severityInput  = document.getElementById("severityInput");
+    const severityLabel  = document.getElementById("severityLabel");
+    const notesInput     = document.getElementById("notesInput");
+    const logBtn         = document.getElementById("logBtn");
+    const logError       = document.getElementById("logError");
+
+    const statTotal      = document.getElementById("statTotal");
+    const statUnique     = document.getElementById("statUnique");
+    const statAvg        = document.getElementById("statAvg");
+    const statTop        = document.getElementById("statTop");
+    const statTopCount   = document.getElementById("statTopCount");
+
+    const breakdownList  = document.getElementById("breakdownList");
+    const historyContainer = document.getElementById("historyContainer");
+    const filterInput    = document.getElementById("filterInput");
+
+    let allLogs = [];
+
+    // ─────────────────────────────────
+    // 2) Severity slider
+    // ─────────────────────────────────
+    function updateSeverityLabel() {
+      const val = parseFloat(severityInput.value);
+      severityLabel.textContent = `${val} / 10`;
+      severityLabel.className = "severity_display " + severityClass(val);
+    }
+
+    severityInput.addEventListener("input", updateSeverityLabel);
+    updateSeverityLabel();
+
+    // ─────────────────────────────────
+    // 3) Helpers
+    // ─────────────────────────────────
+    function severityClass(val) {
+      if (val <= 3) return "low";
+      if (val <= 6) return "mid";
+      return "high";
+    }
+
+    function severityLabel2(val) {
+      if (val <= 3) return "Mild";
+      if (val <= 6) return "Moderate";
+      return "Severe";
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, {
+        weekday: "short", month: "short", day: "numeric"
+      }) + " at " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // ─────────────────────────────────
+    // 4) Render stats
+    // ─────────────────────────────────
+    function renderStats(stats) {
+      if (!stats || stats.length === 0) {
+        statTotal.textContent = "0";
+        statUnique.textContent = "0";
+        statAvg.textContent = "–";
+        statTop.textContent = "–";
+        statTopCount.textContent = "";
+        return;
+      }
+
+      const totalLogs = stats.reduce((sum, s) => sum + s.count, 0);
+      const weightedAvg = stats.reduce((sum, s) => sum + s.avg_severity * s.count, 0) / totalLogs;
+      const top = stats[0]; // already sorted by count desc from backend
+
+      statTotal.textContent = totalLogs;
+      statUnique.textContent = stats.length;
+      statAvg.textContent = weightedAvg.toFixed(1);
+      statTop.textContent = top.symptom;
+      statTopCount.textContent = `${top.count} log${top.count !== 1 ? "s" : ""}`;
+    }
+
+    // ─────────────────────────────────
+    // 5) Render breakdown
+    // ─────────────────────────────────
+    function renderBreakdown(stats) {
+      if (!stats || stats.length === 0) {
+        breakdownList.innerHTML = `
+          <div class="empty">
+            <h3>No data yet</h3>
+            <p>Log your first symptom above to see the breakdown.</p>
+          </div>
+        `;
+        return;
+      }
+
+      breakdownList.innerHTML = stats.map(s => `
+        <div class="breakdown_item">
+          <span class="breakdown_name">${escapeHtml(s.symptom)}</span>
+          <div class="breakdown_meta">
+            <span class="breakdown_badge">${s.count}×</span>
+            <span class="breakdown_severity ${severityClass(s.avg_severity)}">
+              Avg ${s.avg_severity} — ${severityLabel2(s.avg_severity)}
+            </span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ─────────────────────────────────
+    // 6) Render history timeline
+    // ─────────────────────────────────
+    function renderHistory(logs) {
+      if (!logs || logs.length === 0) {
+        historyContainer.innerHTML = `
+          <div class="empty">
+            <h3>No logs yet</h3>
+            <p>Use the form above to log a symptom. Your entries will appear here as a timeline.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const html = `<div class="timeline">${logs.map(log => `
+        <div class="timeline_entry" data-id="${log.id}">
+          <div class="entry_top">
+            <span class="entry_symptom">${escapeHtml(log.symptom)}</span>
+            <span class="entry_severity ${severityClass(log.severity)}">
+              ${log.severity}/10 — ${severityLabel2(log.severity)}
+            </span>
+          </div>
+          ${log.notes ? `<p class="entry_notes">${escapeHtml(log.notes)}</p>` : ""}
+          <div class="entry_bottom">
+            <span class="entry_time">${formatDate(log.logged_at)}</span>
+            <button class="delete_btn" type="button" data-id="${log.id}">Delete</button>
+          </div>
+        </div>
+      `).join("")}</div>`;
+
+      historyContainer.innerHTML = html;
+
+      // Attach delete handlers
+      historyContainer.querySelectorAll(".delete_btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          if (!confirm("Delete this symptom log?")) return;
+          try {
+            const res = await fetch(`${API_BASE}/timeline/log/${id}`, {
+              method: "DELETE",
+              headers: authHeaders(),
+            });
+            if (!res.ok) throw new Error("Delete failed");
+            await loadAll();
+          } catch (err) {
+            alert("Failed to delete: " + err.message);
+          }
+        });
+      });
+    }
+
+    // ─────────────────────────────────
+    // 7) Filter
+    // ─────────────────────────────────
+    filterInput.addEventListener("input", () => {
+      const query = filterInput.value.trim().toLowerCase();
+      if (!query) {
+        renderHistory(allLogs);
+        return;
+      }
+      const filtered = allLogs.filter(log =>
+        log.symptom.toLowerCase().includes(query)
+      );
+      renderHistory(filtered);
+    });
+
+    // ─────────────────────────────────
+    // 8) Load everything
+    // ─────────────────────────────────
+    async function loadAll() {
+      try {
+        const [stats, history] = await Promise.all([
+          getTimelineStats(),
+          getTimeline({ limit: 200 }),
+        ]);
+
+        allLogs = history;
+        renderStats(stats);
+        renderBreakdown(stats);
+        renderHistory(history);
+      } catch (err) {
+        console.error("Load error:", err);
+        historyContainer.innerHTML = `
+          <div class="empty">
+            <h3>Could not load data</h3>
+            <p>${escapeHtml(err.message)}</p>
+          </div>
+        `;
+      }
+    }
+
+    // ─────────────────────────────────
+    // 9) Submit log form
+    // ─────────────────────────────────
+    logForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      logError.textContent = "";
+
+      const symptom = symptomInput.value.trim();
+      const severity = parseFloat(severityInput.value);
+      const notes = notesInput.value.trim();
+
+      if (!symptom) {
+        logError.textContent = "Please enter a symptom.";
+        return;
+      }
+
+      logBtn.disabled = true;
+      logBtn.textContent = "Logging…";
+
+      try {
+        await logSymptom(symptom, severity, notes);
+
+        // Reset form
+        symptomInput.value = "";
+        severityInput.value = 5;
+        notesInput.value = "";
+        updateSeverityLabel();
+
+        // Reload data
+        await loadAll();
+      } catch (err) {
+        logError.textContent = err.message;
+      } finally {
+        logBtn.disabled = false;
+        logBtn.textContent = "+ Log";
+      }
+    });
+
+    // ─────────────────────────────────
+    // 10) Refresh button
+    // ─────────────────────────────────
+    document.getElementById("refreshBtn").addEventListener("click", loadAll);
+
+    // ─────────────────────────────────
+    // Init
+    // ─────────────────────────────────
+    loadAll();
+  </script>
+</body>
+</html>
