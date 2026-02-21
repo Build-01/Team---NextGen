@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     debug: bool = True
     database_url: str = "sqlite:///./healthbud.db"
 
-    openai_api_key: str | None = None
-    openai_model: str = "gpt-4.1-mini"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash"
     enable_web_search: bool = True
     web_search_max_results: int = 8
     trusted_medical_domains: list[str] = Field(default_factory=lambda: [
