@@ -8,12 +8,13 @@ from app.services.gemini_client import LLMClient
 
 SYSTEM_PROMPT = """
 You are HealthBud, a healthcare intake and triage assistant for web users.
+- Reply naturally and conversationally in assistant_message.
+- You can reply to ANY user message (health or non-health).
+- If message is not health-related, respond conversationally and gently steer to health check-in.
+- For health-related messages, provide practical triage guidance with calm tone.
 - You are not a doctor and must not provide final diagnosis.
-- Use the user's message and symptom details to produce a structured triage summary.
-- Be careful and conservative with safety; escalate if emergency red flags are present.
-- Keep remedies general and low-risk, and always include clear safety disclaimer.
 Return only valid JSON with the following keys exactly:
-summary, follow_up_questions, possible_conditions, possible_remedies,
+assistant_message, summary, follow_up_questions, possible_conditions, possible_remedies,
 urgency_level, urgency_reason, seek_care_within, red_flags, specialist_types, safety_disclaimer.
 urgency_level must be one of: low, medium, high, emergency.
 """.strip()
@@ -52,13 +53,16 @@ class ChatbotService:
                 user_payload=user_input,
                 temperature=0.2,
             )
-            normalized = self._normalize_assessment_payload(parsed)
+            normalized = self._normalize_assessment_payload(
+                parsed=parsed,
+                health_related=self._looks_like_health_message(payload),
+            )
             return AssessmentData.model_validate(normalized)
         except Exception as exc:
             logger.warning("LLM request failed (%s); using fallback assessment: %s", self._client.provider, exc)
             return self._fallback_for_any_message(payload)
 
-    def _normalize_assessment_payload(self, parsed: dict) -> dict:
+    def _normalize_assessment_payload(self, parsed: dict, health_related: bool) -> dict:
         if not isinstance(parsed, dict):
             raise ValueError("LLM response must be a JSON object")
 
@@ -85,7 +89,9 @@ class ChatbotService:
         if isinstance(specialist_types, str):
             specialist_types = [specialist_types]
 
-        return {
+        normalized = {
+            "assistant_message": str(parsed.get("assistant_message") or parsed.get("summary") or "I am here to help. Tell me what you are feeling today."),
+            "show_structured_output": True,
             "summary": str(parsed.get("summary") or "AI triage assessment generated."),
             "follow_up_questions": [str(item) for item in follow_up_questions],
             "possible_conditions": [str(item) for item in possible_conditions],
@@ -100,6 +106,19 @@ class ChatbotService:
                 or "This is not a medical diagnosis. Seek urgent care for severe or worsening symptoms."
             ),
         }
+
+        if not health_related:
+            normalized["show_structured_output"] = False
+            normalized["urgency_level"] = "low"
+            normalized["urgency_reason"] = "No health symptoms were provided in this message."
+            normalized["seek_care_within"] = "Not applicable unless you develop symptoms."
+            normalized["possible_conditions"] = []
+            normalized["possible_remedies"] = []
+            normalized["follow_up_questions"] = []
+            normalized["red_flags"] = []
+            normalized["specialist_types"] = []
+
+        return normalized
 
     def _normalize_urgency(self, value: object) -> str:
         if isinstance(value, str):
@@ -149,26 +168,20 @@ class ChatbotService:
     def _fallback_general_message(self, payload: ChatAssessmentRequest) -> AssessmentData:
         message_excerpt = payload.message.strip()[:180]
         return AssessmentData(
-            summary=f"I can respond to general messages too. You said: '{message_excerpt}'.",
-            follow_up_questions=[
-                "Do you want a general response or health-specific guidance?",
-                "If this is health-related, share symptoms and severity (0-10) for better triage.",
-            ],
+            assistant_message=(
+                f"I hear you — you said: '{message_excerpt}'. I can chat about that. "
+                "Whenever you want, share how your body feels today and I can help with a health check-in."
+            ),
+            show_structured_output=False,
+            summary=f"General conversational message received: '{message_excerpt}'.",
+            follow_up_questions=[],
             possible_conditions=[],
-            possible_remedies=[
-                "If this is not health-related, ask your question directly and I will respond conversationally.",
-                "If this is health-related, include symptom location, severity, and duration.",
-            ],
+            possible_remedies=[],
             urgency_level=UrgencyLevel.low,
-            urgency_reason="No clear health-risk indicators were detected in this message.",
+            urgency_reason="No clear health-risk indicators were detected from this non-health message.",
             seek_care_within="Not applicable unless you have symptoms.",
-            red_flags=[
-                "Chest pain",
-                "Difficulty breathing",
-                "Fainting",
-                "Uncontrolled bleeding",
-            ],
-            specialist_types=["General Practitioner"],
+            red_flags=[],
+            specialist_types=[],
             safety_disclaimer="For urgent or severe symptoms, seek immediate in-person medical care.",
         )
 
@@ -210,6 +223,11 @@ class ChatbotService:
             specialists = ["General Practitioner", "Internal Medicine"]
 
         return AssessmentData(
+            assistant_message=(
+                "Thanks for sharing that. From what you described, here’s what I’m thinking right now. "
+                "I’ll keep it simple, and if your symptoms get worse I’ll tell you when to escalate care."
+            ),
+            show_structured_output=True,
             summary="Preliminary triage generated from your message and symptom details.",
             follow_up_questions=[
                 "When did each symptom start, and has it changed over time?",
