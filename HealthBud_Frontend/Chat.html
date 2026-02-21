@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./chat.css" />
+  <title>HealthBud • Chat</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="./homepage.html">← Home</a>
+
+    <div class="brand" aria-label="HealthBud">
+      <div class="brand_mark" aria-hidden="true"></div>
+      <h1 class="brand_name">HealthBud</h1>
+    </div>
+
+    <button class="ghost_btn" id="clearBtn" type="button">Clear</button>
+  </header>
+
+  <main class="chat_shell" aria-label="Chat">
+    <section class="chat_card" aria-label="Conversation">
+      <div class="chat_header">
+        <div>
+          <h2>Chat</h2>
+          <p class="muted" id="welcomeLine">Talk about symptoms. I’ll help you think through next steps.</p>
+        </div>
+        <span class="pill" id="statusPill">Demo mode</span>
+      </div>
+
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+      <form class="composer" id="composer" autocomplete="off">
+        <input
+          id="messageInput"
+          type="text"
+          placeholder="Type a message…"
+          aria-label="Message"
+          required
+        />
+        <button class="send_btn" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    // ----------------------------
+    // 0) Auth guard (demo session)
+    // ----------------------------
+    const token = localStorage.getItem("hb_token");
+    if (!token) window.location.href = "./get-started.html";
+
+    const userRaw = localStorage.getItem("hb_user");
+    let userName = "there";
+    try {
+      const user = userRaw ? JSON.parse(userRaw) : null;
+      if (user?.name) userName = user.name;
+    } catch {}
+    document.getElementById("welcomeLine").textContent =
+      `Hi ${userName} — tell me what’s going on and I’ll suggest questions to consider and when to seek care.`;
+
+    // ----------------------------
+    // 1) State + persistence
+    // ----------------------------
+    const STORAGE_KEY = "hb_chat_messages_v1";
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("messageInput");
+    const composerEl = document.getElementById("composer");
+
+    /** @type {{role:'user'|'assistant', text:string, ts:number}[]} */
+    let chat = [];
+
+    function loadChat() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        chat = raw ? JSON.parse(raw) : [];
+      } catch {
+        chat = [];
+      }
+    }
+
+    function saveChat() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(chat));
+    }
+
+    // ----------------------------
+    // 2) Rendering
+    // ----------------------------
+    function escapeHtml(str) {
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function render() {
+      messagesEl.innerHTML = "";
+
+      if (chat.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML = `
+          <h3>Start a conversation</h3>
+          <p>Example: “I have a headache and sore throat for 2 days.”</p>
+        `;
+        messagesEl.appendChild(empty);
+        return;
+      }
+
+      for (const msg of chat) {
+        const row = document.createElement("div");
+        row.className = `msg ${msg.role}`;
+
+        row.innerHTML = `
+          <div class="bubble">
+            <div class="text">${escapeHtml(msg.text)}</div>
+            <div class="time">${new Date(msg.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+          </div>
+        `;
+        messagesEl.appendChild(row);
+      }
+
+      // scroll to newest
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // ----------------------------
+    // 3) Demo assistant response
+    // ----------------------------
+    function demoAssistantReply(userText) {
+      const t = userText.toLowerCase();
+
+      // super simple heuristics (we can improve later)
+      const emergency = /chest pain|can't breathe|cannot breathe|severe bleeding|faint|stroke|suicid|overdose/.test(t);
+      if (emergency) {
+        return "If you’re having severe symptoms (like trouble breathing, chest pain, or fainting), seek emergency care now. If you can, call local emergency services.";
+      }
+
+      const fever = /fever|temperature|chills/.test(t);
+      const pain = /pain|hurt|ache/.test(t);
+
+      let reply = "Thanks for sharing. A few quick questions to narrow this down:\n";
+      reply += "• When did it start, and is it getting better or worse?\n";
+      reply += "• Any fever, shortness of breath, chest pain, or severe weakness?\n";
+      reply += "• Any new meds, allergies, travel, or sick contacts?\n";
+
+      if (fever) reply += "\nSince you mentioned fever/chills: what’s the highest temperature you measured (and how)?";
+      if (pain) reply += "\nSince you mentioned pain: where exactly is it, and what’s the severity 0–10?";
+
+      reply += "\n\nIf you want, list: age range, key symptoms, and any medical conditions, and I’ll suggest next steps.";
+      return reply;
+    }
+
+    // ----------------------------
+    // 4) Sending messages
+    // ----------------------------
+    function addMessage(role, text) {
+      chat.push({ role, text, ts: Date.now() });
+      saveChat();
+      render();
+    }
+
+    function addTypingBubble() {
+      const row = document.createElement("div");
+      row.className = "msg assistant";
+      row.id = "typingRow";
+      row.innerHTML = `
+        <div class="bubble typing">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+      `;
+      messagesEl.appendChild(row);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function removeTypingBubble() {
+      const el = document.getElementById("typingRow");
+      if (el) el.remove();
+    }
+
+    composerEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      addMessage("user", text);
+      inputEl.value = "";
+      inputEl.focus();
+
+      addTypingBubble();
+
+      // simulate network latency
+      await new Promise(r => setTimeout(r, 550));
+
+      removeTypingBubble();
+      addMessage("assistant", demoAssistantReply(text));
+    });
+
+    // Clear conversation
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      chat = [];
+      saveChat();
+      render();
+    });
+
+    // initial
+    loadChat();
+    render();
+  </script>
+</body>
+</html>
