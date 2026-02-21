@@ -1,10 +1,11 @@
 import os
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import DateTime, Integer, String, Text, create_engine
+from sqlalchemy import DateTime, Integer, String, Text, create_engine, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 
@@ -24,7 +25,7 @@ class SymptomEntry(Base):
     user_id: Mapped[str] = mapped_column(String(255), index=True)
     symptom: Mapped[str] = mapped_column(String(255), index=True)
     raw_input: Mapped[Optional[str]] = mapped_column(Text(), nullable=True)
-    input_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    input_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     experienced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     severity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -53,6 +54,7 @@ KNOWN_SYMPTOMS = [
     "body ache",
     "congestion",
 ]
+MAX_EXTRACTED_SYMPTOMS = 5
 
 
 class SymptomIntakeRequest(BaseModel):
@@ -92,15 +94,16 @@ def extract_symptoms(message: str) -> list[str]:
     if extracted:
         return extracted
     chunks = [chunk.strip() for chunk in message.split(",") if chunk.strip()]
-    return chunks[:5]
+    return chunks[:MAX_EXTRACTED_SYMPTOMS]
 
 
-app = FastAPI(title="Health Chatbot Backend")
-
-
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="Health Chatbot Backend", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -155,12 +158,18 @@ def intake_symptoms(payload: SymptomIntakeRequest, x_user_id: Optional[str] = He
 
 
 @app.get("/users/{user_id}/symptoms", response_model=list[SymptomEntryResponse])
-def get_user_symptoms(user_id: str) -> list[SymptomEntryResponse]:
+def get_user_symptoms(
+    user_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[SymptomEntryResponse]:
     with SessionLocal() as db:  # type: Session
         rows = (
             db.query(SymptomEntry)
             .filter(SymptomEntry.user_id == user_id)
             .order_by(SymptomEntry.input_at.desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
 
