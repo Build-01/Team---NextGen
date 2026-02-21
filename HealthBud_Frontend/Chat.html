@@ -30,16 +30,14 @@
 
       <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
 
-      <form class="composer" id="composer" autocomplete="off">
-        <input
+      <div class="composer" id="composer" aria-label="Message composer">
+        <textarea
           id="messageInput"
-          type="text"
           placeholder="Type a message…"
           aria-label="Message"
-          required
-        />
-        <button class="send_btn" type="submit">Send</button>
-      </form>
+        ></textarea>
+        <button class="send_btn" id="sendBtn" type="button">Send</button>
+      </div>
     </section>
   </main>
 
@@ -48,7 +46,7 @@
     // 0) Auth guard (demo session)
     // ----------------------------
     const token = localStorage.getItem("hb_token");
-    if (!token) window.location.href = "./get-started.html";
+    if (!token) window.location.href = "./getstarted.html";
 
     const userRaw = localStorage.getItem("hb_user");
     let userName = "there";
@@ -57,7 +55,7 @@
       if (user?.name) userName = user.name;
     } catch {}
     document.getElementById("welcomeLine").textContent =
-      `Hi ${userName} — tell me what’s going on and I’ll suggest questions to consider and when to seek care.`;
+      `Hi ${userName} — describe your symptoms and I’ll fetch a backend triage assessment.`;
 
     // ----------------------------
     // 1) State + persistence
@@ -65,7 +63,10 @@
     const STORAGE_KEY = "hb_chat_messages_v1";
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("messageInput");
-    const composerEl = document.getElementById("composer");
+    const sendBtn = document.getElementById("sendBtn");
+    const statusPill = document.getElementById("statusPill");
+
+    const API_BASE = "http://127.0.0.1:8000/api/v1";
 
     /** @type {{role:'user'|'assistant', text:string, ts:number}[]} */
     let chat = [];
@@ -126,31 +127,84 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    // ----------------------------
-    // 3) Demo assistant response
-    // ----------------------------
-    function demoAssistantReply(userText) {
-      const t = userText.toLowerCase();
+    function extractSeverity(text) {
+      const match = text.match(/\b(?:severity|pain\s*level|level)\s*(?:is|=|:)?\s*(10|[0-9])\b/i);
+      if (!match) return 5;
+      return Math.max(0, Math.min(10, Number(match[1])));
+    }
 
-      // super simple heuristics (we can improve later)
-      const emergency = /chest pain|can't breathe|cannot breathe|severe bleeding|faint|stroke|suicid|overdose/.test(t);
-      if (emergency) {
-        return "If you’re having severe symptoms (like trouble breathing, chest pain, or fainting), seek emergency care now. If you can, call local emergency services.";
+    function extractPrimarySymptom(text) {
+      const cleaned = text
+        .replace(/[.,!?]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+      const known = [
+        "chest pain",
+        "shortness of breath",
+        "headache",
+        "fever",
+        "nausea",
+        "cough",
+        "vomiting",
+        "dizziness",
+        "abdominal pain",
+        "sore throat",
+      ];
+
+      for (const symptom of known) {
+        if (cleaned.includes(symptom)) return symptom;
+      }
+      return "general discomfort";
+    }
+
+    function formatAssessment(data) {
+      const assessment = data.assessment || {};
+      const conditions = (assessment.possible_conditions || []).join(", ") || "No clear condition listed";
+      const remedies = (assessment.possible_remedies || []).map(item => `• ${item}`).join("\n") || "• No remedy listed";
+      const followUps = (assessment.follow_up_questions || []).map(item => `• ${item}`).join("\n");
+
+      return [
+        `Urgency: ${assessment.urgency_level || "unknown"}`,
+        `When to seek care: ${assessment.seek_care_within || "N/A"}`,
+        `Reason: ${assessment.urgency_reason || "N/A"}`,
+        "",
+        `Summary: ${assessment.summary || "N/A"}`,
+        `Possible conditions: ${conditions}`,
+        "",
+        "Possible remedies:",
+        remedies,
+        "",
+        "Follow-up questions:",
+        followUps || "• None",
+      ].join("\n");
+    }
+
+    async function requestBackendAssessment(messageText) {
+      const payload = {
+        message: messageText,
+        locale: "en-NG",
+        symptoms: [
+          {
+            name: extractPrimarySymptom(messageText),
+            severity: extractSeverity(messageText),
+          },
+        ],
+      };
+
+      const response = await fetch(`${API_BASE}/chat/assess`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`Backend request failed (${response.status}): ${details}`);
       }
 
-      const fever = /fever|temperature|chills/.test(t);
-      const pain = /pain|hurt|ache/.test(t);
-
-      let reply = "Thanks for sharing. A few quick questions to narrow this down:\n";
-      reply += "• When did it start, and is it getting better or worse?\n";
-      reply += "• Any fever, shortness of breath, chest pain, or severe weakness?\n";
-      reply += "• Any new meds, allergies, travel, or sick contacts?\n";
-
-      if (fever) reply += "\nSince you mentioned fever/chills: what’s the highest temperature you measured (and how)?";
-      if (pain) reply += "\nSince you mentioned pain: where exactly is it, and what’s the severity 0–10?";
-
-      reply += "\n\nIf you want, list: age range, key symptoms, and any medical conditions, and I’ll suggest next steps.";
-      return reply;
+      return response.json();
     }
 
     // ----------------------------
@@ -180,8 +234,7 @@
       if (el) el.remove();
     }
 
-    composerEl.addEventListener("submit", async (e) => {
-      e.preventDefault();
+    async function sendMessage() {
       const text = inputEl.value.trim();
       if (!text) return;
 
@@ -189,13 +242,32 @@
       inputEl.value = "";
       inputEl.focus();
 
+      sendBtn.disabled = true;
+      statusPill.textContent = "Contacting backend...";
       addTypingBubble();
 
-      // simulate network latency
-      await new Promise(r => setTimeout(r, 550));
+      try {
+        const result = await requestBackendAssessment(text);
+        removeTypingBubble();
+        addMessage("assistant", formatAssessment(result));
+        statusPill.textContent = "Backend connected";
+      } catch (error) {
+        removeTypingBubble();
+        const message = error instanceof Error ? error.message : String(error);
+        addMessage("assistant", `Integration error: ${message}`);
+        statusPill.textContent = "Backend error";
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
 
-      removeTypingBubble();
-      addMessage("assistant", demoAssistantReply(text));
+    sendBtn.addEventListener("click", sendMessage);
+
+    inputEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
     });
 
     // Clear conversation
@@ -207,6 +279,7 @@
 
     // initial
     loadChat();
+    statusPill.textContent = "Backend ready";
     render();
   </script>
 </body>
