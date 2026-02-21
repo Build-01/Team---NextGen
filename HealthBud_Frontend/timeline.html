@@ -8,327 +8,417 @@
 </head>
 <body>
 
-  <!-- ===== Topbar ===== -->
   <header class="topbar">
     <a class="back" href="./homepage.html">← Home</a>
-
     <div class="brand" aria-label="HealthBud">
       <div class="brand_mark" aria-hidden="true"></div>
       <h1 class="brand_name">HealthBud</h1>
     </div>
-
-    <button class="ghost_btn" id="refreshBtn" type="button">Refresh</button>
+    <button class="ghost_btn" id="refreshBtn" type="button">↻ Refresh</button>
   </header>
 
-  <!-- ===== Main ===== -->
-  <main class="timeline_shell" aria-label="Symptom Timeline">
-    <div class="timeline_layout">
+  <main class="tl_shell" aria-label="Symptom Timeline">
+    <div class="tl_layout">
 
-      <!-- Log Form -->
-      <section class="log_card" aria-label="Log a symptom">
-        <h2>Log a symptom</h2>
-        <p class="muted">Track what you're feeling so you can spot patterns over time.</p>
+      <!-- Hero -->
+      <section class="tl_hero" aria-label="Timeline intro">
+        <div class="hero_icon">📊</div>
+        <div class="hero_text">
+          <h2 id="heroTitle">Your Symptom Timeline</h2>
+          <p id="heroSub">Track symptoms over time and spot patterns that matter.</p>
+        </div>
+      </section>
 
-        <form class="log_form" id="logForm" autocomplete="off">
+      <!-- Quick Log -->
+      <section class="quick_log" aria-label="Log a symptom">
+        <form class="quick_log_form" id="logForm" autocomplete="off">
           <div class="field">
-            <label for="symptomInput">Symptom</label>
-            <input id="symptomInput" type="text" placeholder="e.g. Headache, Nausea" required />
+            <label for="symptomInput">What's bothering you?</label>
+            <input id="symptomInput" type="text" placeholder="e.g. Headache, Nausea, Back pain…" required />
           </div>
 
           <div class="field">
             <label for="severityInput">Severity</label>
-            <input id="severityInput" type="range" min="0" max="10" step="0.5" value="5" />
-            <div class="severity_display mid" id="severityLabel">5 / 10</div>
+            <div class="severity_wrap">
+              <input class="severity_track" id="severityInput" type="range" min="0" max="10" step="0.5" value="5" />
+              <div class="severity_badge mid" id="sevBadge">5 / 10 — Moderate</div>
+            </div>
           </div>
 
           <div class="field">
             <label for="notesInput">Notes (optional)</label>
-            <input id="notesInput" type="text" placeholder="Any extra details…" />
+            <input id="notesInput" type="text" placeholder="Started after lunch…" />
           </div>
 
           <button class="log_btn" type="submit" id="logBtn">+ Log</button>
-
           <p class="log_error" id="logError" aria-live="polite"></p>
         </form>
-      </section>
 
-      <!-- Stats Row -->
-      <section class="stats_row" id="statsRow" aria-label="Symptom statistics">
-        <div class="stat_card">
-          <div class="stat_label">Total Logs</div>
-          <div class="stat_value" id="statTotal">–</div>
-          <div class="stat_sub">all time</div>
-        </div>
-
-        <div class="stat_card">
-          <div class="stat_label">Unique Symptoms</div>
-          <div class="stat_value" id="statUnique">–</div>
-          <div class="stat_sub">tracked</div>
-        </div>
-
-        <div class="stat_card">
-          <div class="stat_label">Avg Severity</div>
-          <div class="stat_value" id="statAvg">–</div>
-          <div class="stat_sub">across all logs</div>
-        </div>
-
-        <div class="stat_card">
-          <div class="stat_label">Most Frequent</div>
-          <div class="stat_value" id="statTop" style="font-size:20px;">–</div>
-          <div class="stat_sub" id="statTopCount"></div>
+        <!-- Quick symptom tags -->
+        <div class="quick_tags">
+          <span class="quick_tags_label">Quick add:</span>
+          <button class="tag" type="button" data-symptom="Headache">🤕 Headache</button>
+          <button class="tag" type="button" data-symptom="Nausea">🤢 Nausea</button>
+          <button class="tag" type="button" data-symptom="Fever">🤒 Fever</button>
+          <button class="tag" type="button" data-symptom="Fatigue">😴 Fatigue</button>
+          <button class="tag" type="button" data-symptom="Back pain">🩹 Back pain</button>
+          <button class="tag" type="button" data-symptom="Sore throat">😮‍💨 Sore throat</button>
+          <button class="tag" type="button" data-symptom="Anxiety">😟 Anxiety</button>
+          <button class="tag" type="button" data-symptom="Cough">🤧 Cough</button>
         </div>
       </section>
 
-      <!-- Symptom Breakdown -->
-      <section class="breakdown_card" id="breakdownSection" aria-label="Symptom breakdown">
-        <h2>Symptom Breakdown</h2>
-        <div class="breakdown_list" id="breakdownList">
-          <div class="loading"><div class="spinner"></div></div>
+      <!-- Stats -->
+      <section class="stats_grid" id="statsGrid" aria-label="Statistics"></section>
+
+      <!-- Breakdown -->
+      <section class="breakdown_card" aria-label="Symptom breakdown">
+        <div class="section_head">
+          <h3>📋 Symptom Breakdown</h3>
         </div>
+        <div class="breakdown_list" id="breakdownList"></div>
       </section>
 
       <!-- History -->
-      <section class="history_card" aria-label="Symptom history">
+      <section class="history_card" aria-label="History">
         <div class="history_header">
-          <h2>History</h2>
-          <div class="filter_row">
-            <input
-              class="filter_input"
-              id="filterInput"
-              type="text"
-              placeholder="Filter by symptom…"
-              aria-label="Filter symptoms"
-            />
+          <h3>🕐 History</h3>
+          <div class="filter_wrap">
+            <input class="filter_input" id="filterInput" type="text" placeholder="Search symptoms…" aria-label="Filter" />
           </div>
         </div>
-
-        <div id="historyContainer">
-          <div class="loading"><div class="spinner"></div></div>
-        </div>
+        <div id="historyContainer"></div>
       </section>
 
     </div>
   </main>
 
-  <script src="./auth.js"></script>
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
   <script>
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
     // 0) Auth guard
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
     const token = localStorage.getItem("hb_token");
     if (!token) window.location.href = "./getstarted.html";
 
-    // ─────────────────────────────────
-    // 1) DOM references
-    // ─────────────────────────────────
-    const logForm        = document.getElementById("logForm");
-    const symptomInput   = document.getElementById("symptomInput");
-    const severityInput  = document.getElementById("severityInput");
-    const severityLabel  = document.getElementById("severityLabel");
-    const notesInput     = document.getElementById("notesInput");
-    const logBtn         = document.getElementById("logBtn");
-    const logError       = document.getElementById("logError");
+    let userName = "";
+    try {
+      const u = JSON.parse(localStorage.getItem("hb_user") || "{}");
+      if (u.name) userName = u.name.split(" ")[0];
+    } catch {}
 
-    const statTotal      = document.getElementById("statTotal");
-    const statUnique     = document.getElementById("statUnique");
-    const statAvg        = document.getElementById("statAvg");
-    const statTop        = document.getElementById("statTop");
-    const statTopCount   = document.getElementById("statTopCount");
+    if (userName) {
+      document.getElementById("heroTitle").textContent = `${userName}'s Symptom Timeline`;
+    }
 
-    const breakdownList  = document.getElementById("breakdownList");
-    const historyContainer = document.getElementById("historyContainer");
-    const filterInput    = document.getElementById("filterInput");
+    const API_BASE = "http://127.0.0.1:8000";
+    let backendAvailable = false;
+
+    async function checkBackend() {
+      try {
+        const r = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
+        if (r.ok) backendAvailable = true;
+      } catch {}
+    }
+
+    // ═══════════════════════════════════════
+    // 1) Local storage
+    // ═══════════════════════════════════════
+    const LOG_KEY = "hb_symptom_logs";
+
+    function getLogs() {
+      try { return JSON.parse(localStorage.getItem(LOG_KEY) || "[]"); }
+      catch { return []; }
+    }
+
+    function saveLogs(logs) {
+      localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+    }
+
+    function addLog(symptom, severity, notes) {
+      const logs = getLogs();
+      const entry = {
+        id: Date.now(),
+        symptom: symptom.trim(),
+        severity,
+        notes: notes.trim(),
+        logged_at: new Date().toISOString(),
+      };
+      logs.unshift(entry);
+      saveLogs(logs);
+      return entry;
+    }
+
+    function removeLog(id) {
+      saveLogs(getLogs().filter(l => l.id !== id));
+    }
+
+    function calcStats() {
+      const logs = getLogs();
+      if (!logs.length) return [];
+
+      const m = {};
+      for (const l of logs) {
+        const k = l.symptom.toLowerCase();
+        if (!m[k]) m[k] = { symptom: l.symptom, count: 0, total: 0, latest: l.logged_at };
+        m[k].count++;
+        m[k].total += l.severity;
+        if (l.logged_at > m[k].latest) m[k].latest = l.logged_at;
+      }
+
+      return Object.values(m)
+        .map(s => ({ ...s, avg_severity: Math.round((s.total / s.count) * 10) / 10 }))
+        .sort((a, b) => b.count - a.count);
+    }
+
+    // ═══════════════════════════════════════
+    // 2) DOM refs
+    // ═══════════════════════════════════════
+    const logForm       = document.getElementById("logForm");
+    const symptomInput  = document.getElementById("symptomInput");
+    const severityInput = document.getElementById("severityInput");
+    const sevBadge      = document.getElementById("sevBadge");
+    const notesInput    = document.getElementById("notesInput");
+    const logBtn        = document.getElementById("logBtn");
+    const logError      = document.getElementById("logError");
+    const statsGrid     = document.getElementById("statsGrid");
+    const breakdownList = document.getElementById("breakdownList");
+    const historyEl     = document.getElementById("historyContainer");
+    const filterInput   = document.getElementById("filterInput");
+    const toastEl       = document.getElementById("toast");
 
     let allLogs = [];
 
-    // ─────────────────────────────────
-    // 2) Severity slider
-    // ─────────────────────────────────
-    function updateSeverityLabel() {
-      const val = parseFloat(severityInput.value);
-      severityLabel.textContent = `${val} / 10`;
-      severityLabel.className = "severity_display " + severityClass(val);
-    }
-
-    severityInput.addEventListener("input", updateSeverityLabel);
-    updateSeverityLabel();
-
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
     // 3) Helpers
-    // ─────────────────────────────────
-    function severityClass(val) {
-      if (val <= 3) return "low";
-      if (val <= 6) return "mid";
-      return "high";
-    }
+    // ═══════════════════════════════════════
+    function sc(v) { return v <= 3 ? "low" : v <= 6 ? "mid" : "high"; }
+    function sw(v) { return v <= 3 ? "Mild" : v <= 6 ? "Moderate" : "Severe"; }
+    function esc(s){ return s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
 
-    function severityLabel2(val) {
-      if (val <= 3) return "Mild";
-      if (val <= 6) return "Moderate";
-      return "Severe";
-    }
-
-    function escapeHtml(str) {
-      return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function formatDate(iso) {
+    function fmtDate(iso) {
       const d = new Date(iso);
-      return d.toLocaleDateString(undefined, {
-        weekday: "short", month: "short", day: "numeric"
-      }) + " at " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const now = new Date();
+      const diff = now - d;
+      const mins = Math.floor(diff / 60000);
+      const hrs = Math.floor(diff / 3600000);
+
+      if (mins < 1) return "Just now";
+      if (mins < 60) return `${mins}m ago`;
+      if (hrs < 24) return `${hrs}h ago`;
+
+      return d.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" })
+        + " · " + d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
     }
 
-    // ─────────────────────────────────
-    // 4) Render stats
-    // ─────────────────────────────────
+    function symptomEmoji(name) {
+      const n = name.toLowerCase();
+      if (/headache|migraine|head/.test(n)) return "🤕";
+      if (/nausea|vomit|stomach/.test(n)) return "🤢";
+      if (/fever|temperature|chills/.test(n)) return "🤒";
+      if (/fatigue|tired|exhaust/.test(n)) return "😴";
+      if (/cough|cold|flu|sneez/.test(n)) return "🤧";
+      if (/anxiety|stress|panic|nervous/.test(n)) return "😟";
+      if (/pain|ache|sore|hurt/.test(n)) return "🩹";
+      if (/throat/.test(n)) return "😮‍💨";
+      if (/skin|rash|itch/.test(n)) return "🔴";
+      if (/breath/.test(n)) return "💨";
+      if (/dizzin|dizzy|faint/.test(n)) return "💫";
+      return "📌";
+    }
+
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      setTimeout(() => toastEl.classList.remove("show"), 2500);
+    }
+
+    // ═══════════════════════════════════════
+    // 4) Severity slider
+    // ═══════════════════════════════════════
+    function updateSev() {
+      const v = parseFloat(severityInput.value);
+      sevBadge.textContent = `${v} / 10 — ${sw(v)}`;
+      sevBadge.className = `severity_badge ${sc(v)}`;
+    }
+    severityInput.addEventListener("input", updateSev);
+    updateSev();
+
+    // ═══════════════════════════════════════
+    // 5) Quick tags
+    // ═══════════════════════════════════════
+    document.querySelectorAll(".tag").forEach(tag => {
+      tag.addEventListener("click", () => {
+        symptomInput.value = tag.dataset.symptom;
+        symptomInput.focus();
+      });
+    });
+
+    // ═══════════════════════════════════════
+    // 6) Render stats
+    // ═══════════════════════════════════════
     function renderStats(stats) {
-      if (!stats || stats.length === 0) {
-        statTotal.textContent = "0";
-        statUnique.textContent = "0";
-        statAvg.textContent = "–";
-        statTop.textContent = "–";
-        statTopCount.textContent = "";
-        return;
-      }
+      const logs = getLogs();
+      const total = logs.length;
+      const unique = stats.length;
+      const avg = total ? (logs.reduce((s, l) => s + l.severity, 0) / total).toFixed(1) : "–";
+      const top = stats[0];
 
-      const totalLogs = stats.reduce((sum, s) => sum + s.count, 0);
-      const weightedAvg = stats.reduce((sum, s) => sum + s.avg_severity * s.count, 0) / totalLogs;
-      const top = stats[0]; // already sorted by count desc from backend
-
-      statTotal.textContent = totalLogs;
-      statUnique.textContent = stats.length;
-      statAvg.textContent = weightedAvg.toFixed(1);
-      statTop.textContent = top.symptom;
-      statTopCount.textContent = `${top.count} log${top.count !== 1 ? "s" : ""}`;
-    }
-
-    // ─────────────────────────────────
-    // 5) Render breakdown
-    // ─────────────────────────────────
-    function renderBreakdown(stats) {
-      if (!stats || stats.length === 0) {
-        breakdownList.innerHTML = `
-          <div class="empty">
-            <h3>No data yet</h3>
-            <p>Log your first symptom above to see the breakdown.</p>
-          </div>
-        `;
-        return;
-      }
-
-      breakdownList.innerHTML = stats.map(s => `
-        <div class="breakdown_item">
-          <span class="breakdown_name">${escapeHtml(s.symptom)}</span>
-          <div class="breakdown_meta">
-            <span class="breakdown_badge">${s.count}×</span>
-            <span class="breakdown_severity ${severityClass(s.avg_severity)}">
-              Avg ${s.avg_severity} — ${severityLabel2(s.avg_severity)}
-            </span>
-          </div>
+      statsGrid.innerHTML = `
+        <div class="stat_card">
+          <div class="stat_icon">📝</div>
+          <div class="stat_value teal">${total}</div>
+          <div class="stat_label">Total Logs</div>
         </div>
-      `).join("");
+        <div class="stat_card">
+          <div class="stat_icon">🔍</div>
+          <div class="stat_value blue">${unique}</div>
+          <div class="stat_label">Unique Symptoms</div>
+        </div>
+        <div class="stat_card">
+          <div class="stat_icon">📈</div>
+          <div class="stat_value purple">${avg}</div>
+          <div class="stat_label">Avg Severity</div>
+        </div>
+        <div class="stat_card">
+          <div class="stat_icon">${top ? symptomEmoji(top.symptom) : "—"}</div>
+          <div class="stat_value warm" style="font-size:${top && top.symptom.length > 10 ? 18 : 22}px">${top ? esc(top.symptom) : "–"}</div>
+          <div class="stat_label">${top ? `${top.count} log${top.count !== 1 ? "s" : ""} · Most frequent` : "Most Frequent"}</div>
+        </div>
+      `;
     }
 
-    // ─────────────────────────────────
-    // 6) Render history timeline
-    // ─────────────────────────────────
-    function renderHistory(logs) {
-      if (!logs || logs.length === 0) {
-        historyContainer.innerHTML = `
-          <div class="empty">
-            <h3>No logs yet</h3>
-            <p>Use the form above to log a symptom. Your entries will appear here as a timeline.</p>
-          </div>
-        `;
+    // ═══════════════════════════════════════
+    // 7) Render breakdown
+    // ═══════════════════════════════════════
+    function renderBreakdown(stats) {
+      if (!stats.length) {
+        breakdownList.innerHTML = `
+          <div class="empty_state">
+            <div class="empty_icon">📋</div>
+            <h3>No symptoms tracked yet</h3>
+            <p>Log your first symptom above to see a breakdown of patterns.</p>
+          </div>`;
         return;
       }
 
-      const html = `<div class="timeline">${logs.map(log => `
-        <div class="timeline_entry" data-id="${log.id}">
+      const maxCount = stats[0].count;
+
+      breakdownList.innerHTML = stats.map((s, i) => {
+        const barWidth = Math.max(8, (s.avg_severity / 10) * 100);
+        return `
+          <div class="bd_item" style="animation-delay:${i * 0.06}s">
+            <div class="bd_emoji">${symptomEmoji(s.symptom)}</div>
+            <div class="bd_info">
+              <div class="bd_name">${esc(s.symptom)}</div>
+              <div class="bd_bar_wrap">
+                <div class="bd_bar ${sc(s.avg_severity)}" style="width:${barWidth}%"></div>
+              </div>
+            </div>
+            <div class="bd_meta">
+              <span class="bd_count">${s.count}×</span>
+              <span class="bd_sev ${sc(s.avg_severity)}">Avg ${s.avg_severity}</span>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    // ═══════════════════════════════════════
+    // 8) Render history
+    // ═══════════════════════════════════════
+    function renderHistory(logs) {
+      if (!logs.length) {
+        historyEl.innerHTML = `
+          <div class="empty_state">
+            <div class="empty_icon">🕐</div>
+            <h3>Your timeline is empty</h3>
+            <p>Tap a quick tag or type a symptom above to start tracking.</p>
+          </div>`;
+        return;
+      }
+
+      historyEl.innerHTML = `<div class="timeline">${logs.map((l, i) => `
+        <div class="tl_entry sev_${sc(l.severity)}" data-id="${l.id}" style="animation-delay:${i * 0.04}s">
           <div class="entry_top">
-            <span class="entry_symptom">${escapeHtml(log.symptom)}</span>
-            <span class="entry_severity ${severityClass(log.severity)}">
-              ${log.severity}/10 — ${severityLabel2(log.severity)}
-            </span>
+            <span class="entry_symptom">${symptomEmoji(l.symptom)} ${esc(l.symptom)}</span>
+            <span class="entry_sev_pill ${sc(l.severity)}">${l.severity}/10 · ${sw(l.severity)}</span>
           </div>
-          ${log.notes ? `<p class="entry_notes">${escapeHtml(log.notes)}</p>` : ""}
+          ${l.notes ? `<p class="entry_notes">${esc(l.notes)}</p>` : ""}
           <div class="entry_bottom">
-            <span class="entry_time">${formatDate(log.logged_at)}</span>
-            <button class="delete_btn" type="button" data-id="${log.id}">Delete</button>
+            <span class="entry_time">🕐 ${fmtDate(l.logged_at)}</span>
+            <button class="del_btn" type="button" data-id="${l.id}">Remove</button>
           </div>
         </div>
       `).join("")}</div>`;
 
-      historyContainer.innerHTML = html;
-
-      // Attach delete handlers
-      historyContainer.querySelectorAll(".delete_btn").forEach(btn => {
+      historyEl.querySelectorAll(".del_btn").forEach(btn => {
         btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          if (!confirm("Delete this symptom log?")) return;
-          try {
-            const res = await fetch(`${API_BASE}/timeline/log/${id}`, {
-              method: "DELETE",
-              headers: authHeaders(),
-            });
-            if (!res.ok) throw new Error("Delete failed");
-            await loadAll();
-          } catch (err) {
-            alert("Failed to delete: " + err.message);
+          const id = parseInt(btn.dataset.id);
+          if (!confirm("Remove this log?")) return;
+
+          if (backendAvailable) {
+            try {
+              await fetch(`${API_BASE}/timeline/log/${id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+            } catch {}
           }
+
+          removeLog(id);
+          loadAll();
+          toast("Log removed");
         });
       });
     }
 
-    // ─────────────────────────────────
-    // 7) Filter
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
+    // 9) Filter
+    // ═══════════════════════════════════════
     filterInput.addEventListener("input", () => {
-      const query = filterInput.value.trim().toLowerCase();
-      if (!query) {
-        renderHistory(allLogs);
-        return;
-      }
-      const filtered = allLogs.filter(log =>
-        log.symptom.toLowerCase().includes(query)
-      );
-      renderHistory(filtered);
+      const q = filterInput.value.trim().toLowerCase();
+      renderHistory(q ? allLogs.filter(l => l.symptom.toLowerCase().includes(q)) : allLogs);
     });
 
-    // ─────────────────────────────────
-    // 8) Load everything
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
+    // 10) Load all
+    // ═══════════════════════════════════════
     async function loadAll() {
-      try {
-        const [stats, history] = await Promise.all([
-          getTimelineStats(),
-          getTimeline({ limit: 200 }),
-        ]);
+      let stats, logs;
 
-        allLogs = history;
-        renderStats(stats);
-        renderBreakdown(stats);
-        renderHistory(history);
-      } catch (err) {
-        console.error("Load error:", err);
-        historyContainer.innerHTML = `
-          <div class="empty">
-            <h3>Could not load data</h3>
-            <p>${escapeHtml(err.message)}</p>
-          </div>
-        `;
+      if (backendAvailable) {
+        try {
+          const h = { Authorization: `Bearer ${token}` };
+          const [sR, lR] = await Promise.all([
+            fetch(`${API_BASE}/timeline/stats`, { headers: h }),
+            fetch(`${API_BASE}/timeline/history?limit=200`, { headers: h }),
+          ]);
+          if (sR.ok && lR.ok) {
+            stats = await sR.json();
+            logs = await lR.json();
+            saveLogs(logs);
+          } else throw new Error();
+        } catch {
+          backendAvailable = false;
+          stats = calcStats();
+          logs = getLogs();
+        }
+      } else {
+        stats = calcStats();
+        logs = getLogs();
       }
+
+      allLogs = logs;
+      renderStats(stats);
+      renderBreakdown(stats);
+      renderHistory(logs);
     }
 
-    // ─────────────────────────────────
-    // 9) Submit log form
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
+    // 11) Submit
+    // ═════════════════════════════��═════════
     logForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       logError.textContent = "";
@@ -337,42 +427,47 @@
       const severity = parseFloat(severityInput.value);
       const notes = notesInput.value.trim();
 
-      if (!symptom) {
-        logError.textContent = "Please enter a symptom.";
-        return;
-      }
+      if (!symptom) { logError.textContent = "Enter a symptom to log."; return; }
 
       logBtn.disabled = true;
       logBtn.textContent = "Logging…";
 
-      try {
-        await logSymptom(symptom, severity, notes);
+      addLog(symptom, severity, notes);
 
-        // Reset form
-        symptomInput.value = "";
-        severityInput.value = 5;
-        notesInput.value = "";
-        updateSeverityLabel();
-
-        // Reload data
-        await loadAll();
-      } catch (err) {
-        logError.textContent = err.message;
-      } finally {
-        logBtn.disabled = false;
-        logBtn.textContent = "+ Log";
+      if (backendAvailable) {
+        try {
+          await fetch(`${API_BASE}/timeline/log`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ symptom, severity, notes }),
+          });
+        } catch { backendAvailable = false; }
       }
+
+      symptomInput.value = "";
+      severityInput.value = 5;
+      notesInput.value = "";
+      updateSev();
+
+      logBtn.disabled = false;
+      logBtn.textContent = "+ Log";
+
+      loadAll();
+      toast(`✓ Logged "${symptom}" — ${severity}/10`);
     });
 
-    // ─────────────────────────────────
-    // 10) Refresh button
-    // ─────────────────────────────────
-    document.getElementById("refreshBtn").addEventListener("click", loadAll);
+    // ═══════════════════════════════════════
+    // 12) Refresh
+    // ═══════════════════════════════════════
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      loadAll();
+      toast("↻ Refreshed");
+    });
 
-    // ─────────────────────────────────
+    // ═══════════════════════════════════════
     // Init
-    // ─────────────────────────────────
-    loadAll();
+    // ═══════════════════════════════════════
+    checkBackend().then(loadAll);
   </script>
 </body>
 </html>
