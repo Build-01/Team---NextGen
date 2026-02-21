@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.chat import router as chat_router
 from app.core.config import get_settings
+from app.db.session import init_db
 
 settings = get_settings()
 
@@ -20,6 +21,11 @@ app.add_middleware(
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
 
 
 app.include_router(chat_router, prefix="/api/v1")

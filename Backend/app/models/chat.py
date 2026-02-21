@@ -6,7 +6,18 @@ from pydantic import BaseModel, Field
 
 class SymptomInput(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
-    severity: int = Field(..., ge=1, le=10)
+    severity: int = Field(..., ge=0, le=10)
+    symptom_started_at: datetime | None = None
+    body_location: str | None = Field(default=None, max_length=120)
+    character: str | None = Field(default=None, max_length=120)
+    aggravating_factors: list[str] = Field(default_factory=list)
+    radiation: str | None = Field(default=None, max_length=200)
+    duration_pattern: str | None = Field(default=None, max_length=120)
+    timing_pattern: str | None = Field(default=None, max_length=120)
+    relieving_factors: list[str] = Field(default_factory=list)
+    associated_symptoms: list[str] = Field(default_factory=list)
+    progression: str | None = Field(default=None, max_length=120)
+    is_constant: bool | None = None
     duration_hours: int | None = Field(default=None, ge=0)
     notes: str | None = Field(default=None, max_length=500)
 
@@ -48,6 +59,7 @@ class ChatAssessmentRequest(BaseModel):
 
 
 class ChatAssessmentResponse(BaseModel):
+    chat_number: int
     session_id: str
     timestamp: datetime
     assessment: AssessmentData

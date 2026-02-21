@@ -5,6 +5,7 @@ Backend API for a health-focused AI chatbot intake flow.
 ## What this version includes
 - FastAPI server with CORS enabled for frontend integration
 - `POST /api/v1/chat/assess` endpoint for health concern triage
+- SQLite-backed database tables for chats and symptoms
 - OpenAI-backed response generation when `OPENAI_API_KEY` is set
 - Safe fallback triage logic when no API key is configured
 
@@ -21,6 +22,7 @@ Backend API for a health-focused AI chatbot intake flow.
 4. Add your OpenAI key in `.env` (optional but recommended):
    ```env
    OPENAI_API_KEY=your_key_here
+   DATABASE_URL=sqlite:///./healthbud.db
    ```
 5. Run the server:
    ```bash
@@ -35,8 +37,28 @@ Request body:
 {
   "message": "I have had chest discomfort and shortness of breath since this morning.",
   "symptoms": [
-    {"name": "chest pain", "severity": 8, "duration_hours": 10},
-    {"name": "shortness of breath", "severity": 7, "duration_hours": 6}
+      {
+         "name": "chest pain",
+         "severity": 8,
+         "symptom_started_at": "2026-02-21T09:30:00Z",
+         "body_location": "left chest",
+         "character": "sharp",
+         "aggravating_factors": ["walking", "deep breathing"],
+         "radiation": "to left arm",
+         "duration_pattern": "intermittent",
+         "timing_pattern": "worse at night",
+         "relieving_factors": ["rest"],
+         "associated_symptoms": ["nausea"],
+         "progression": "worsening",
+         "is_constant": false,
+         "duration_hours": 10,
+         "notes": "Started after climbing stairs"
+      },
+      {
+         "name": "shortness of breath",
+         "severity": 7,
+         "duration_hours": 6
+      }
   ],
   "patient_context": {
     "age": 41,
@@ -49,7 +71,22 @@ Request body:
 }
 ```
 
-The response returns a structured triage payload your frontend can render directly.
+The response returns a structured triage payload plus a stored `chat_number`.
+
+## Database structure
+- `chats`
+   - `chat_number` (primary key)
+   - `chat_id` (external session/chat id)
+   - `message`, `locale`, `recorded_at`
+   - patient context: `age`, `biological_sex`, `chronic_conditions`, `current_medications`, `allergies`
+   - `assessment` (JSON output from chatbot)
+- `symptoms`
+   - `id` (primary key), `chat_number` (foreign key to chats)
+   - `name`, `severity` (0-10)
+   - `symptom_started_at`, `recorded_at`
+   - `body_location`, `character`, `aggravating_factors`, `radiation`
+   - `duration_pattern`, `timing_pattern`, `relieving_factors`
+   - `associated_symptoms`, `progression`, `is_constant`, `duration_hours`, `notes`
 
 ## Note
 This service provides AI-assisted intake guidance only and is not a medical diagnosis engine.
