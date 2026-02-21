@@ -1,0 +1,94 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Header */
+.header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30px 10%;
+}
+
+.logo h1{
+  color: #0F766E;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+/* Button */
+button{
+  color: white;
+  background-color: #0F766E;
+  border-style: none;
+  width: 150px;
+  height: 38px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  box-shadow: 0 10px 20px rgba(15,118,110,0.18);
+}
+
+button:hover{
+  background: #0b615b;
+  transform: translateY(-1px);
+}
+
+button:active{
+  transform: translateY(0);
+  box-shadow: 0 6px 14px rgba(15,118,110,0.16);
+}
+
+/* Main container (hero) */
+.min_cont{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 30px 10%;
+  min-height: calc(100vh - 90px);
+}
+
+/* Left side */
+.min_cont_1{
+  width: 50%;
+}
+
+.min_cont_1 h1{
+  font-size: clamp(42px, 5vw, 72px);
+  letter-spacing: -1.2px;
+  line-height: 1.05;
+  color: #0F172A;
+}
+
+.min_cont_1 h1 span{
+  color: #0F766E;
+}
+
+.min_cont_1 p{
+  margin-top: 12px;
+  font-size: clamp(16px, 2vw, 20px);
+  color: #64748B;
+}
+
+.min_cont_1 p span{
+  color: #0F766E;
+  font-weight: 700;
+}
+
+/* Right side */
+.min_cont_2{
+  width: 50%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.min_cont_2 img{
+  width: min(520px, 100%);
+  height: auto;
+  display: block;
+}
