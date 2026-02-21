@@ -1,8 +1,9 @@
 from functools import lru_cache
+import logging
 
 from app.core.config import get_settings
 from app.models.chat import AssessmentData, ChatAssessmentRequest, UrgencyLevel
-from app.services.gemini_client import GeminiClient
+from app.services.gemini_client import LLMClient
 
 
 SYSTEM_PROMPT = """
@@ -17,18 +18,26 @@ urgency_level, urgency_reason, seek_care_within, red_flags, specialist_types, sa
 urgency_level must be one of: low, medium, high, emergency.
 """.strip()
 
+logger = logging.getLogger(__name__)
+
 
 class ChatbotService:
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = GeminiClient(
-            api_key=settings.gemini_api_key,
-            model=settings.gemini_model,
+        provider = settings.llm_provider.strip().lower()
+        api_key = settings.openrouter_api_key if provider == "openrouter" else settings.gemini_api_key
+        model = settings.openrouter_model if provider == "openrouter" else settings.gemini_model
+        self._client = LLMClient(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            app_name=settings.openrouter_app_name,
+            site_url=settings.openrouter_site_url,
         )
 
     def assess_health_input(self, payload: ChatAssessmentRequest) -> AssessmentData:
         if not self._client.enabled:
-            return self._fallback_assessment(payload)
+            return self._fallback_for_any_message(payload)
 
         user_input = {
             "message": payload.message,
@@ -43,9 +52,125 @@ class ChatbotService:
                 user_payload=user_input,
                 temperature=0.2,
             )
-            return AssessmentData.model_validate(parsed)
-        except Exception:
+            normalized = self._normalize_assessment_payload(parsed)
+            return AssessmentData.model_validate(normalized)
+        except Exception as exc:
+            logger.warning("LLM request failed (%s); using fallback assessment: %s", self._client.provider, exc)
+            return self._fallback_for_any_message(payload)
+
+    def _normalize_assessment_payload(self, parsed: dict) -> dict:
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM response must be a JSON object")
+
+        urgency_value = parsed.get("urgency_level", "medium")
+        urgency = self._normalize_urgency(urgency_value)
+
+        follow_up_questions = parsed.get("follow_up_questions", [])
+        if isinstance(follow_up_questions, str):
+            follow_up_questions = [follow_up_questions]
+
+        possible_conditions = parsed.get("possible_conditions", [])
+        if isinstance(possible_conditions, str):
+            possible_conditions = [possible_conditions]
+
+        possible_remedies = parsed.get("possible_remedies", [])
+        if isinstance(possible_remedies, str):
+            possible_remedies = [possible_remedies]
+
+        red_flags = parsed.get("red_flags", [])
+        if isinstance(red_flags, str):
+            red_flags = [red_flags]
+
+        specialist_types = parsed.get("specialist_types", [])
+        if isinstance(specialist_types, str):
+            specialist_types = [specialist_types]
+
+        return {
+            "summary": str(parsed.get("summary") or "AI triage assessment generated."),
+            "follow_up_questions": [str(item) for item in follow_up_questions],
+            "possible_conditions": [str(item) for item in possible_conditions],
+            "possible_remedies": [str(item) for item in possible_remedies],
+            "urgency_level": urgency,
+            "urgency_reason": str(parsed.get("urgency_reason") or "Estimated from symptoms and available context."),
+            "seek_care_within": str(parsed.get("seek_care_within") or "Within 24-48 hours if symptoms persist or worsen."),
+            "red_flags": [str(item) for item in red_flags],
+            "specialist_types": [str(item) for item in specialist_types],
+            "safety_disclaimer": str(
+                parsed.get("safety_disclaimer")
+                or "This is not a medical diagnosis. Seek urgent care for severe or worsening symptoms."
+            ),
+        }
+
+    def _normalize_urgency(self, value: object) -> str:
+        if isinstance(value, str):
+            candidate = value.strip().lower()
+            if candidate in {"low", "medium", "high", "emergency"}:
+                return candidate
+
+        if isinstance(value, (int, float)):
+            score = float(value)
+            if score >= 8:
+                return "emergency"
+            if score >= 6:
+                return "high"
+            if score >= 3:
+                return "medium"
+            return "low"
+
+        return "medium"
+
+    def _fallback_for_any_message(self, payload: ChatAssessmentRequest) -> AssessmentData:
+        if self._looks_like_health_message(payload):
             return self._fallback_assessment(payload)
+        return self._fallback_general_message(payload)
+
+    def _looks_like_health_message(self, payload: ChatAssessmentRequest) -> bool:
+        if payload.symptoms:
+            return True
+
+        text = payload.message.lower()
+        health_terms = {
+            "pain",
+            "fever",
+            "cough",
+            "vomit",
+            "nausea",
+            "headache",
+            "dizzy",
+            "breath",
+            "chest",
+            "doctor",
+            "symptom",
+            "sick",
+            "ill",
+        }
+        return any(term in text for term in health_terms)
+
+    def _fallback_general_message(self, payload: ChatAssessmentRequest) -> AssessmentData:
+        message_excerpt = payload.message.strip()[:180]
+        return AssessmentData(
+            summary=f"I can respond to general messages too. You said: '{message_excerpt}'.",
+            follow_up_questions=[
+                "Do you want a general response or health-specific guidance?",
+                "If this is health-related, share symptoms and severity (0-10) for better triage.",
+            ],
+            possible_conditions=[],
+            possible_remedies=[
+                "If this is not health-related, ask your question directly and I will respond conversationally.",
+                "If this is health-related, include symptom location, severity, and duration.",
+            ],
+            urgency_level=UrgencyLevel.low,
+            urgency_reason="No clear health-risk indicators were detected in this message.",
+            seek_care_within="Not applicable unless you have symptoms.",
+            red_flags=[
+                "Chest pain",
+                "Difficulty breathing",
+                "Fainting",
+                "Uncontrolled bleeding",
+            ],
+            specialist_types=["General Practitioner"],
+            safety_disclaimer="For urgent or severe symptoms, seek immediate in-person medical care.",
+        )
 
     def _fallback_assessment(self, payload: ChatAssessmentRequest) -> AssessmentData:
         text = payload.message.lower()
