@@ -396,10 +396,61 @@
         return primary;
       }
 
+      function getAdaptiveVitalChecks(assessmentData) {
+        const contextText = [
+          assessmentData.assistant_message,
+          assessmentData.summary,
+          ...(assessmentData.possible_conditions || []),
+          ...(assessmentData.follow_up_questions || []),
+          ...(assessmentData.red_flags || []),
+        ].join(" ").toLowerCase();
+
+        const hasAny = (terms) => terms.some(term => contextText.includes(term));
+
+        const respiratoryTerms = ["breath", "shortness of breath", "cough", "wheez", "asthma", "chest", "oxygen", "spo2"];
+        const infectionTerms = ["fever", "infection", "chills", "flu", "viral", "bacterial", "sepsis"];
+        const neuroTerms = ["headache", "migraine", "dizz", "faint", "stroke", "vision", "numb", "weakness", "confusion"];
+        const dehydrationGiTerms = ["vomit", "diarr", "dehydrat", "abdominal", "stomach", "nausea"];
+
+        const checks = new Set();
+
+        if (hasAny(respiratoryTerms)) {
+          checks.add("Oxygen saturation SpO₂ (%)");
+          checks.add("Respiratory rate (breaths per minute)");
+          checks.add("Heart rate (beats per minute)");
+        }
+
+        if (hasAny(infectionTerms)) {
+          checks.add("Temperature (°C/°F)");
+          checks.add("Heart rate (beats per minute)");
+        }
+
+        if (hasAny(neuroTerms)) {
+          checks.add("Blood pressure (mmHg)");
+          checks.add("Heart rate (beats per minute)");
+          checks.add("Temperature (°C/°F)");
+        }
+
+        if (hasAny(dehydrationGiTerms)) {
+          checks.add("Heart rate (beats per minute)");
+          checks.add("Blood pressure (mmHg)");
+          checks.add("Temperature (°C/°F)");
+        }
+
+        if (checks.size === 0) {
+          checks.add("Temperature (°C/°F)");
+          checks.add("Heart rate (beats per minute)");
+          checks.add("Blood pressure (mmHg)");
+        }
+
+        return Array.from(checks).slice(0, 5);
+      }
+
       const conditions = (assessment.possible_conditions || []).join(", ") || "No clear condition listed";
       const remedies = (assessment.possible_remedies || []).map(item => `• ${item}`).join("\n");
       const followUps = (assessment.follow_up_questions || []).map(item => `• ${item}`).join("\n");
       const redFlags = (assessment.red_flags || []).map(item => `• ${item}`).join("\n");
+      const vitalChecks = getAdaptiveVitalChecks(assessment).map(item => `• ${item}`).join("\n");
 
       return [
         primary,
@@ -412,6 +463,7 @@
         "",
         `Summary: ${assessment.summary || "N/A"}`,
         `Possible conditions: ${conditions}`,
+        `\nVital checks to share (if available):\n${vitalChecks}`,
         remedies ? `\nPossible remedies:\n${remedies}` : "",
         redFlags ? `\n⚠️ Red flags (seek urgent care if present):\n${redFlags}` : "",
         followUps ? `\nFollow-up questions:\n${followUps}` : "",
