@@ -71,6 +71,30 @@
       <!-- Stats -->
       <section class="stats_grid" id="statsGrid" aria-label="Statistics"></section>
 
+      <!-- Evaluation -->
+      <section class="evaluation_card" aria-label="Wellbeing evaluation">
+        <div class="section_head">
+          <h3>🧠 Wellbeing Evaluation</h3>
+          <p class="eval_hint">Based on your symptom trend over time</p>
+        </div>
+
+        <div class="eval_grid">
+          <div class="eval_score_wrap">
+            <div class="eval_score_label">Wellbeing Score</div>
+            <div class="eval_score" id="evalScore">--</div>
+            <div class="eval_band" id="evalBand">Log symptoms to generate your first evaluation</div>
+          </div>
+
+          <div class="eval_trend_wrap">
+            <div class="eval_score_label">7-Day Trend</div>
+            <div class="eval_trend" id="evalTrend">No trend yet</div>
+            <div class="trend_bars" id="trendBars"></div>
+          </div>
+        </div>
+
+        <ul class="eval_points" id="evalPoints"></ul>
+      </section>
+
       <!-- Breakdown -->
       <section class="breakdown_card" aria-label="Symptom breakdown">
         <div class="section_head">
@@ -188,6 +212,11 @@
     const historyEl     = document.getElementById("historyContainer");
     const filterInput   = document.getElementById("filterInput");
     const toastEl       = document.getElementById("toast");
+    const evalScoreEl   = document.getElementById("evalScore");
+    const evalBandEl    = document.getElementById("evalBand");
+    const evalTrendEl   = document.getElementById("evalTrend");
+    const trendBarsEl   = document.getElementById("trendBars");
+    const evalPointsEl  = document.getElementById("evalPoints");
 
     let allLogs = [];
 
@@ -326,6 +355,101 @@
     }
 
     // ═══════════════════════════════════════
+    // 8b) Render wellbeing evaluation
+    // ═══════════════════════════════════════
+    function dayKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function renderEvaluation(logs, stats) {
+      if (!logs.length) {
+        evalScoreEl.textContent = "--";
+        evalBandEl.textContent = "Log symptoms to generate your first evaluation";
+        evalTrendEl.textContent = "No trend yet";
+        trendBarsEl.innerHTML = "";
+        evalPointsEl.innerHTML = "";
+        return;
+      }
+
+      const now = new Date();
+      const map = new Map();
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        map.set(dayKey(d), []);
+      }
+
+      for (const log of logs) {
+        const d = new Date(log.logged_at);
+        const k = dayKey(d);
+        if (map.has(k)) map.get(k).push(log.severity);
+      }
+
+      const days = Array.from(map.entries()).map(([k, severities]) => {
+        const avg = severities.length ? severities.reduce((a, b) => a + b, 0) / severities.length : 0;
+        return { key: k, count: severities.length, avg };
+      });
+
+      const firstHalf = days.slice(0, 3);
+      const secondHalf = days.slice(4, 7);
+
+      const firstAvg = firstHalf.reduce((a, b) => a + b.avg, 0) / Math.max(firstHalf.length, 1);
+      const secondAvg = secondHalf.reduce((a, b) => a + b.avg, 0) / Math.max(secondHalf.length, 1);
+      const delta = secondAvg - firstAvg;
+
+      const totalLogs7d = days.reduce((a, b) => a + b.count, 0);
+      const weightedSeverity = days.reduce((a, b) => a + (b.avg * b.count), 0) / Math.max(totalLogs7d, 1);
+
+      const rawScore = 100 - (weightedSeverity * 8) - Math.min(totalLogs7d, 24) * 1.2 - Math.max(delta, 0) * 5 + Math.max(-delta, 0) * 4;
+      const score = Math.round(clamp(rawScore, 0, 100));
+
+      let band = "Stable";
+      if (score >= 80) band = "Doing Well";
+      else if (score >= 60) band = "Mild Strain";
+      else if (score >= 40) band = "Monitor Closely";
+      else band = "Needs Attention";
+
+      let trend = "Flat trend";
+      if (delta <= -0.8) trend = "Improving trend ↘ severity decreasing";
+      else if (delta >= 0.8) trend = "Worsening trend ↗ severity increasing";
+
+      const topSymptom = stats[0]?.symptom || "N/A";
+      const avgToday = days[6]?.avg || 0;
+
+      evalScoreEl.textContent = `${score}/100`;
+      evalBandEl.textContent = band;
+      evalTrendEl.textContent = trend;
+
+      trendBarsEl.innerHTML = days.map((d, idx) => {
+        const h = Math.max(10, Math.round((d.avg / 10) * 68));
+        const shortDay = new Date(d.key).toLocaleDateString(undefined, { weekday: "short" });
+        return `
+          <div class="trend_bar_col" title="${shortDay}: avg ${d.avg.toFixed(1)} (${d.count} log${d.count !== 1 ? "s" : ""})">
+            <div class="trend_bar ${sc(d.avg)}" style="height:${h}px"></div>
+            <span>${shortDay}</span>
+          </div>
+        `;
+      }).join("");
+
+      evalPointsEl.innerHTML = [
+        `Most frequent symptom this period: <strong>${esc(topSymptom)}</strong>.`,
+        `Average severity this week: <strong>${weightedSeverity.toFixed(1)}/10</strong>.`,
+        `Today’s average severity: <strong>${avgToday.toFixed(1)}/10</strong>.`,
+        totalLogs7d >= 10
+          ? "You have rich tracking data this week; this helps improve pattern detection."
+          : "Try logging symptoms more consistently for stronger trend accuracy.",
+      ].map(item => `<li>${item}</li>`).join("");
+    }
+
+    // ═══════════════════════════════════════
     // 8) Render history
     // ═══════════════════════════════════════
     function renderHistory(logs) {
@@ -412,6 +536,7 @@
 
       allLogs = logs;
       renderStats(stats);
+      renderEvaluation(logs, stats);
       renderBreakdown(stats);
       renderHistory(logs);
     }

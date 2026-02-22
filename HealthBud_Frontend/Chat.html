@@ -199,6 +199,53 @@
       render();
     }
 
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function addAssistantMsgAnimated(text) {
+      const fullText = String(text || "");
+      const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (prefersReducedMotion || fullText.length < 20) {
+        addMsg("assistant", fullText);
+        return;
+      }
+
+      const message = { role: "assistant", text: "", ts: Date.now() };
+      chat.push(message);
+      saveChat();
+      render();
+
+      const textNodes = messagesEl.querySelectorAll(".msg.assistant .text");
+      const target = textNodes[textNodes.length - 1];
+      if (!target) {
+        message.text = fullText;
+        saveChat();
+        render();
+        return;
+      }
+
+      target.classList.add("revealing");
+
+      const chunkSize = fullText.length > 1500 ? 18 : fullText.length > 800 ? 12 : fullText.length > 350 ? 8 : 5;
+      const delay = fullText.length > 900 ? 10 : 15;
+
+      for (let i = chunkSize; i <= fullText.length; i += chunkSize) {
+        const partial = fullText.slice(0, i);
+        message.text = partial;
+        target.innerHTML = formatText(partial);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        await sleep(delay);
+      }
+
+      message.text = fullText;
+      target.innerHTML = formatText(fullText);
+      target.classList.remove("revealing");
+      saveChat();
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
     function showTyping() {
       const row = document.createElement("div");
       row.className = "msg assistant typing";
@@ -305,7 +352,7 @@
 
         const reply = await fetchAssistantReply(text);
         setStatus("online", "AI Connected");
-        addMsg("assistant", reply);
+        await addAssistantMsgAnimated(reply);
       } catch (error) {
         setStatus("offline", "Offline");
         const message = error instanceof Error ? error.message : String(error);
