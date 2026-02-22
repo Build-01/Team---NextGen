@@ -27,14 +27,6 @@
         <h2>Find Care Nearby</h2>
         <p class="muted">Browse hospitals, doctors, pharmacies, and more — or pick a demo city to explore.</p>
 
-        <div class="urgent_banner hidden" id="urgentBanner" role="status" aria-live="polite">
-          <div>
-            <strong>⚠️ Urgent Care Recommended</strong>
-            <p id="urgentBannerText">Your recent chat suggests you should seek urgent care quickly.</p>
-          </div>
-          <button class="urgent_btn" id="urgentSearchBtn" type="button">Seek Urgent Care</button>
-        </div>
-
         <div class="location_controls">
           <div class="location_status pending" id="locationStatus">
             <span class="status_dot"></span>
@@ -220,6 +212,7 @@
     let cityName = "";
     let selectedType = "all";
     let filteredPlaces = [];
+    const CORE_CARE_TYPES = new Set(["doctor", "hospital"]);
 
     // ═══════════════════════════════════════
     // 3) DOM
@@ -238,9 +231,6 @@
     const mapContainer    = document.getElementById("mapContainer");
     const resultsGrid     = document.getElementById("resultsGrid");
     const resultCount     = document.getElementById("resultCount");
-    const urgentBanner    = document.getElementById("urgentBanner");
-    const urgentBannerText= document.getElementById("urgentBannerText");
-    const urgentSearchBtn = document.getElementById("urgentSearchBtn");
 
     // ═══════════════════════════════════════
     // 4) Helpers
@@ -272,46 +262,6 @@
     function setLocation(type, text){
       locationStatus.className = `location_status ${type}`;
       locationText.textContent = text;
-    }
-
-    function setActiveCategory(type) {
-      categoryPills.querySelectorAll(".cat_pill").forEach(p => p.classList.remove("active"));
-      const target = categoryPills.querySelector(`.cat_pill[data-type="${type}"]`);
-      if (target) target.classList.add("active");
-      selectedType = type;
-    }
-
-    function applyUrgentModeFromChat() {
-      const params = new URLSearchParams(window.location.search);
-      const isUrgentMode = params.get("mode") === "urgent";
-
-      let handoff = null;
-      try {
-        handoff = JSON.parse(localStorage.getItem("hb_urgent_handoff") || "null");
-      } catch {
-        handoff = null;
-      }
-
-      if (!isUrgentMode && !handoff) return;
-
-      setActiveCategory("urgent");
-      keywordInput.value = "emergency urgent walk-in";
-
-      let msg = "Your recent chat indicates higher urgency. Find urgent care nearby now.";
-      if (handoff && handoff.reason) {
-        msg = `${handoff.reason} ${handoff.seekWithin ? `Suggested timing: ${handoff.seekWithin}` : ""}`.trim();
-      }
-      urgentBannerText.textContent = msg;
-      urgentBanner.classList.remove("hidden");
-
-      urgentSearchBtn.addEventListener("click", () => {
-        if (userLat === null) {
-          locateBtn.click();
-          return;
-        }
-        runSearch();
-        document.querySelector(".results_card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
     }
 
     // ═══════════════════════════════════════
@@ -375,7 +325,9 @@
     categoryPills.addEventListener("click", e => {
       const pill = e.target.closest(".cat_pill");
       if (!pill) return;
-      setActiveCategory(pill.dataset.type);
+      categoryPills.querySelectorAll(".cat_pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      selectedType = pill.dataset.type;
       if (userLat !== null) runSearch();
     });
 
@@ -388,7 +340,6 @@
     radiusSlider.addEventListener("input", updateRadiusLabel);
     radiusSlider.addEventListener("change", () => { if (userLat !== null) runSearch(); });
     updateRadiusLabel();
-    applyUrgentModeFromChat();
 
     // ═══════════════════════════════════════
     // 9) Sort selector
@@ -434,6 +385,13 @@
         distance: haversine(userLat, userLng, p.lat, p.lng),
       }));
 
+      if (selectedType === "all") {
+        const coreCare = filteredPlaces.filter(item => CORE_CARE_TYPES.has(item.type));
+        if (coreCare.length) {
+          filteredPlaces = coreCare;
+        }
+      }
+
       updateMap();
       renderResults(filteredPlaces);
     }
@@ -473,7 +431,10 @@
         return 0;
       });
 
-      resultCount.textContent = `${sorted.length} result${sorted.length!==1?"s":""}`;
+      const showingCoreCare = selectedType === "all" && sorted.some(item => CORE_CARE_TYPES.has(item.type));
+      resultCount.textContent = showingCoreCare
+        ? `${sorted.length} nearest doctor/hospital result${sorted.length!==1?"s":""}`
+        : `${sorted.length} result${sorted.length!==1?"s":""}`;
 
       const typeEmoji = { hospital:"🏥", doctor:"🩺", pharmacy:"💊", dentist:"🦷", physio:"🏋️", urgent:"⚡" };
 

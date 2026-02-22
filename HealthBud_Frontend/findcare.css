@@ -132,46 +132,6 @@ body{
   margin-bottom: 16px;
 }
 
-.urgent_banner{
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(239,68,68,0.28);
-  background: rgba(239,68,68,0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.urgent_banner p{
-  margin-top: 4px;
-  color: rgba(15,23,42,0.72);
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-
-.urgent_banner.hidden{
-  display: none;
-}
-
-.urgent_btn{
-  border: none;
-  background: linear-gradient(180deg, #EF4444, #DC2626);
-  color: #fff;
-  font-weight: 900;
-  border-radius: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-  box-shadow: 0 10px 24px rgba(220,38,38,0.28);
-  white-space: nowrap;
-}
-
-.urgent_btn:hover{
-  filter: brightness(1.03);
-  transform: translateY(-1px);
-}
-
 .location_controls{
   display: flex;
   gap: 10px;
