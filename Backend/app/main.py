@@ -1,17 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes.chat import router as chat_router
 from app.core.config import get_settings
+from app.core.security import SecurityHeadersMiddleware
 from app.db.session import init_db
-
-
-
-import os
-from dotenv import load_dotenv
-
-load_dotenv()  # This loads the variables from .env into os.environ
-api_key = os.getenv("GEMINI_API_KEY")
 
 settings = get_settings()
 
@@ -21,9 +15,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.get("/health")

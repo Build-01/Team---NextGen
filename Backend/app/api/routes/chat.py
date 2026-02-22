@@ -7,9 +7,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
-from app.db.models import ChatRecord, SymptomRecord
+from app.core.security import rate_limit_chat_analyze, rate_limit_chat_assess
+from app.db.models import ChatMessageRecord, ChatRecord, SymptomRecord
 from app.db.session import get_db_session
-from app.models.chat import ChatAssessmentRequest, ChatAssessmentResponse, StoredChatAnalysisResponse
+from app.models.chat import (
+    ChatAssessmentRequest,
+    ChatAssessmentResponse,
+    ChatLogEntry,
+    ChatSessionLogsResponse,
+    StoredChatAnalysisResponse,
+)
 from app.services.chat_analysis import ChatAnalysisService, get_chat_analysis_service
 from app.services.chatbot import ChatbotService, get_chatbot_service
 
@@ -21,6 +28,7 @@ async def assess_health_concern(
     payload: ChatAssessmentRequest,
     chatbot_service: ChatbotService = Depends(get_chatbot_service),
     db: Session = Depends(get_db_session),
+    _: None = Depends(rate_limit_chat_assess),
 ) -> ChatAssessmentResponse:
     session_id = payload.session_id or str(uuid4())
     turn_id = str(uuid4())
@@ -94,6 +102,26 @@ async def assess_health_concern(
     db.commit()
     db.refresh(chat_record)
 
+    db.add_all(
+        [
+            ChatMessageRecord(
+                chat_number=chat_record.chat_number,
+                session_id=session_id,
+                role="user",
+                content=payload.message,
+                created_at=recorded_at,
+            ),
+            ChatMessageRecord(
+                chat_number=chat_record.chat_number,
+                session_id=session_id,
+                role="assistant",
+                content=assessment.assistant_message,
+                created_at=recorded_at,
+            ),
+        ]
+    )
+    db.commit()
+
     return ChatAssessmentResponse(
         chat_number=chat_record.chat_number,
         session_id=session_id,
@@ -107,6 +135,7 @@ async def analyze_stored_chat(
     chat_number: int,
     db: Session = Depends(get_db_session),
     analysis_service: ChatAnalysisService = Depends(get_chat_analysis_service),
+    _: None = Depends(rate_limit_chat_analyze),
 ) -> StoredChatAnalysisResponse:
     statement = (
         select(ChatRecord)
@@ -118,3 +147,31 @@ async def analyze_stored_chat(
         raise HTTPException(status_code=404, detail="Chat record not found")
 
     return analysis_service.analyze_stored_chat(chat_record)
+
+
+@router.get("/session/{session_id}/logs", response_model=ChatSessionLogsResponse)
+async def get_session_logs(
+    session_id: str,
+    db: Session = Depends(get_db_session),
+    _: None = Depends(rate_limit_chat_assess),
+) -> ChatSessionLogsResponse:
+    statement = (
+        select(ChatMessageRecord)
+        .where(ChatMessageRecord.session_id == session_id)
+        .order_by(ChatMessageRecord.created_at.asc(), ChatMessageRecord.id.asc())
+    )
+    rows = list(db.execute(statement).scalars().all())
+
+    return ChatSessionLogsResponse(
+        session_id=session_id,
+        total_messages=len(rows),
+        logs=[
+            ChatLogEntry(
+                id=item.id,
+                role=item.role,
+                content=item.content,
+                timestamp=item.created_at,
+            )
+            for item in rows
+        ],
+    )

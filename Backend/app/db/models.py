@@ -30,6 +30,10 @@ class ChatRecord(Base):
         back_populates="chat",
         cascade="all, delete-orphan",
     )
+    messages: Mapped[list["ChatMessageRecord"]] = relationship(
+        back_populates="chat",
+        cascade="all, delete-orphan",
+    )
 
 
 class SymptomRecord(Base):
@@ -58,3 +62,16 @@ class SymptomRecord(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     chat: Mapped[ChatRecord] = relationship(back_populates="symptoms")
+
+
+class ChatMessageRecord(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_number: Mapped[int] = mapped_column(ForeignKey("chats.chat_number", ondelete="CASCADE"), index=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
+    role: Mapped[str] = mapped_column(String(20), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+    chat: Mapped[ChatRecord] = relationship(back_populates="messages")

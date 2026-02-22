@@ -44,6 +44,13 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:5500",
     ])
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(default_factory=lambda: [
+        "localhost",
+        "127.0.0.1",
+        "*.vercel.app",
+    ])
+    chat_assess_rate_limit_per_min: int = 40
+    chat_analyze_rate_limit_per_min: int = 20
 
     model_config = SettingsConfigDict(
         env_file=str(BACKEND_ROOT / ".env"),
@@ -62,6 +69,13 @@ class Settings(BaseSettings):
     @field_validator("trusted_medical_domains", mode="before")
     @classmethod
     def parse_trusted_domains(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("trusted_hosts", mode="before")
+    @classmethod
+    def parse_trusted_hosts(cls, value: str | list[str]) -> list[str]:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value

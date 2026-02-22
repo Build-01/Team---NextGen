@@ -133,11 +133,16 @@
       const lines = raw.split("\n");
       const htmlParts = [];
       let bullets = [];
+      let bulletsSection = "";
+      let activeSection = "";
 
       function flushBullets() {
         if (!bullets.length) return;
-        htmlParts.push(`<ul class="assistant_list">${bullets.map(item => `<li>${esc(item)}</li>`).join("")}</ul>`);
+        const isRedFlags = bulletsSection.includes("red flags") || bulletsSection.includes("red flag");
+        const listClass = isRedFlags ? "assistant_list red_flags_list" : "assistant_list";
+        htmlParts.push(`<ul class="${listClass}">${bullets.map(item => `<li>${esc(item)}</li>`).join("")}</ul>`);
         bullets = [];
+        bulletsSection = "";
       }
 
       for (const lineRaw of lines) {
@@ -150,6 +155,9 @@
         }
 
         if (line.startsWith("• ")) {
+          if (!bullets.length) {
+            bulletsSection = activeSection;
+          }
           bullets.push(line.slice(2).trim());
           continue;
         }
@@ -176,7 +184,11 @@
         }
 
         if (line.endsWith(":")) {
-          htmlParts.push(`<h4 class="assistant_heading">${esc(line.slice(0, -1))}</h4>`);
+          activeSection = line.slice(0, -1).trim().toLowerCase();
+          const headingClass = activeSection.includes("red flags") || activeSection.includes("red flag")
+            ? "assistant_heading red_flags_heading"
+            : "assistant_heading";
+          htmlParts.push(`<h4 class="${headingClass}">${esc(line.slice(0, -1))}</h4>`);
           continue;
         }
 
@@ -387,6 +399,7 @@
       const conditions = (assessment.possible_conditions || []).join(", ") || "No clear condition listed";
       const remedies = (assessment.possible_remedies || []).map(item => `• ${item}`).join("\n");
       const followUps = (assessment.follow_up_questions || []).map(item => `• ${item}`).join("\n");
+      const redFlags = (assessment.red_flags || []).map(item => `• ${item}`).join("\n");
 
       return [
         primary,
@@ -400,6 +413,7 @@
         `Summary: ${assessment.summary || "N/A"}`,
         `Possible conditions: ${conditions}`,
         remedies ? `\nPossible remedies:\n${remedies}` : "",
+        redFlags ? `\n⚠️ Red flags (seek urgent care if present):\n${redFlags}` : "",
         followUps ? `\nFollow-up questions:\n${followUps}` : "",
       ].filter(Boolean).join("\n");
     }
