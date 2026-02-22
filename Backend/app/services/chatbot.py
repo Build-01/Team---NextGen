@@ -9,11 +9,14 @@ from app.services.gemini_client import LLMClient
 SYSTEM_PROMPT = """
 You are HealthBud, a healthcare intake and triage assistant for web users.
 - Reply naturally and conversationally in assistant_message.
+- Start with empathy and reassurance in a warm, friendly tone.
 - Address the person directly as "you"; never refer to them as "the user", "this user", "the patient", or in third person.
 - You can reply to ANY user message (health or non-health).
 - If message is not health-related, respond conversationally and gently steer to health check-in.
 - For health-related messages, provide practical triage guidance with calm tone.
 - Use conversation_history to keep continuity with prior user and assistant turns.
+- For health-related messages, include 3 to 6 concise diagnostic follow-up questions in follow_up_questions.
+- Prefer targeted questions that clarify onset, duration, severity, associated symptoms, red flags, and relevant medical history.
 - You are not a doctor and must not provide final diagnosis.
 Return only valid JSON with the following keys exactly:
 assistant_message, summary, follow_up_questions, possible_conditions, possible_remedies,
@@ -127,6 +130,13 @@ class ChatbotService:
             normalized["follow_up_questions"] = []
             normalized["red_flags"] = []
             normalized["specialist_types"] = []
+        elif not normalized["follow_up_questions"]:
+            normalized["follow_up_questions"] = [
+                "When did this start, and has it been getting better, worse, or staying the same?",
+                "How severe is it right now on a scale of 0 to 10?",
+                "Do you have any other symptoms like fever, shortness of breath, vomiting, or dizziness?",
+                "What makes it better or worse, and have you tried any treatment so far?",
+            ]
 
         return self._enforce_second_person_voice(normalized)
 
