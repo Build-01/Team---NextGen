@@ -126,6 +126,67 @@
       return html;
     }
 
+    function formatAssistantRichText(text) {
+      const raw = String(text || "").trim();
+      if (!raw) return "";
+
+      const lines = raw.split("\n");
+      const htmlParts = [];
+      let bullets = [];
+
+      function flushBullets() {
+        if (!bullets.length) return;
+        htmlParts.push(`<ul class="assistant_list">${bullets.map(item => `<li>${esc(item)}</li>`).join("")}</ul>`);
+        bullets = [];
+      }
+
+      for (const lineRaw of lines) {
+        const line = lineRaw.trim();
+        if (!line) continue;
+
+        if (line === "---") {
+          flushBullets();
+          continue;
+        }
+
+        if (line.startsWith("• ")) {
+          bullets.push(line.slice(2).trim());
+          continue;
+        }
+
+        flushBullets();
+
+        if (/^Urgency\s*:/i.test(line)) {
+          const value = line.split(":").slice(1).join(":").trim();
+          const urgencyClass = /emergency/i.test(value)
+            ? "emergency"
+            : /high/i.test(value)
+              ? "high"
+              : /medium/i.test(value)
+                ? "medium"
+                : "low";
+          htmlParts.push(`<div class="assistant_meta"><span class="urgency_chip ${urgencyClass}">Urgency: ${esc(value || "unknown")}</span></div>`);
+          continue;
+        }
+
+        if (/^When to seek care\s*:/i.test(line) || /^Reason\s*:/i.test(line) || /^Summary\s*:/i.test(line)) {
+          const [label, ...rest] = line.split(":");
+          htmlParts.push(`<p class="assistant_row"><strong>${esc(label)}:</strong> ${esc(rest.join(":").trim())}</p>`);
+          continue;
+        }
+
+        if (line.endsWith(":")) {
+          htmlParts.push(`<h4 class="assistant_heading">${esc(line.slice(0, -1))}</h4>`);
+          continue;
+        }
+
+        htmlParts.push(`<p class="assistant_p">${esc(line)}</p>`);
+      }
+
+      flushBullets();
+      return `<div class="assistant_rich">${htmlParts.join("")}</div>`;
+    }
+
     function timeStr(ts) {
       return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
@@ -178,19 +239,20 @@
         return;
       }
 
-      for (const msg of chat) {
+      chat.forEach((msg, index) => {
         const isUser = msg.role === "user";
         const row = document.createElement("div");
         row.className = `msg ${msg.role}`;
+        const renderedText = isUser ? formatText(msg.text) : formatAssistantRichText(msg.text);
         row.innerHTML = `
           <div class="msg_avatar">${isUser ? userInitial : "🩺"}</div>
-          <div class="bubble">
-            <div class="text">${formatText(msg.text)}</div>
+          <div class="bubble ${isUser ? "" : "assistant_bubble"}">
+            <div class="text">${renderedText}</div>
             <div class="time">${isUser ? "" : "🩺 HealthBud · "}${timeStr(msg.ts)}</div>
           </div>
         `;
         messagesEl.appendChild(row);
-      }
+      });
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
@@ -229,8 +291,8 @@
 
       target.classList.add("revealing");
 
-      const chunkSize = fullText.length > 1500 ? 18 : fullText.length > 800 ? 12 : fullText.length > 350 ? 8 : 5;
-      const delay = fullText.length > 900 ? 10 : 15;
+      const chunkSize = fullText.length > 1500 ? 20 : fullText.length > 800 ? 14 : fullText.length > 350 ? 9 : 6;
+      const delay = fullText.length > 900 ? 12 : 18;
 
       for (let i = chunkSize; i <= fullText.length; i += chunkSize) {
         const partial = fullText.slice(0, i);
@@ -241,7 +303,7 @@
       }
 
       message.text = fullText;
-      target.innerHTML = formatText(fullText);
+      target.innerHTML = formatAssistantRichText(fullText);
       target.classList.remove("revealing");
       saveChat();
       messagesEl.scrollTop = messagesEl.scrollHeight;
