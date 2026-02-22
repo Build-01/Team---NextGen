@@ -137,7 +137,7 @@
       document.getElementById("heroTitle").textContent = `${userName}'s Symptom Timeline`;
     }
 
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = window.location.origin;
     let backendAvailable = false;
 
     async function checkBackend() {
@@ -151,6 +151,7 @@
     // 1) Local storage
     // ═══════════════════════════════════════
     const LOG_KEY = "hb_symptom_logs";
+    const CHAT_KEY = "hb_chat_messages_v1";
 
     function getLogs() {
       try { return JSON.parse(localStorage.getItem(LOG_KEY) || "[]"); }
@@ -165,6 +166,7 @@
       const logs = getLogs();
       const entry = {
         id: Date.now(),
+        source: "manual",
         symptom: symptom.trim(),
         severity,
         notes: notes.trim(),
@@ -179,8 +181,7 @@
       saveLogs(getLogs().filter(l => l.id !== id));
     }
 
-    function calcStats() {
-      const logs = getLogs();
+    function calcStats(logs = getLogs()) {
       if (!logs.length) return [];
 
       const m = {};
@@ -256,6 +257,53 @@
       if (/breath/.test(n)) return "💨";
       if (/dizzin|dizzy|faint/.test(n)) return "💫";
       return "📌";
+    }
+
+    function inferSymptomName(text) {
+      const t = (text || "").toLowerCase();
+      const patterns = [
+        "chest pain", "shortness of breath", "headache", "fever", "nausea",
+        "cough", "vomiting", "dizziness", "abdominal pain", "sore throat",
+        "fatigue", "back pain", "anxiety", "leg pain", "arm pain", "neck pain",
+      ];
+      return patterns.find(p => t.includes(p)) || "";
+    }
+
+    function inferSeverity(text) {
+      const m = String(text || "").match(/\b(?:severity|pain\s*level|level)\s*(?:is|=|:)?\s*(10|[0-9])\b/i);
+      if (!m) return 5;
+      return Math.max(0, Math.min(10, Number(m[1])));
+    }
+
+    function getChatDerivedLogs() {
+      let msgs = [];
+      try { msgs = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]"); }
+      catch { msgs = []; }
+
+      const derived = [];
+      for (let i = 0; i < msgs.length; i++) {
+        const msg = msgs[i];
+        if (!msg || msg.role !== "user") continue;
+        const symptom = inferSymptomName(msg.text || "");
+        if (!symptom) continue;
+
+        const ts = typeof msg.ts === "number" ? msg.ts : Date.now();
+        derived.push({
+          id: `chat-${ts}-${i}`,
+          source: "chat",
+          symptom,
+          severity: inferSeverity(msg.text || ""),
+          notes: (msg.text || "").slice(0, 160),
+          logged_at: new Date(ts).toISOString(),
+        });
+      }
+      return derived;
+    }
+
+    function getCombinedLogs() {
+      const manual = getLogs().map(item => ({ ...item, source: item.source || "manual" }));
+      const fromChat = getChatDerivedLogs();
+      return [...fromChat, ...manual].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at));
     }
 
     function toast(msg) {
@@ -469,10 +517,11 @@
             <span class="entry_symptom">${symptomEmoji(l.symptom)} ${esc(l.symptom)}</span>
             <span class="entry_sev_pill ${sc(l.severity)}">${l.severity}/10 · ${sw(l.severity)}</span>
           </div>
+          <div class="entry_source ${l.source === "chat" ? "chat" : "manual"}">${l.source === "chat" ? "From Chat" : "Manual Log"}</div>
           ${l.notes ? `<p class="entry_notes">${esc(l.notes)}</p>` : ""}
           <div class="entry_bottom">
             <span class="entry_time">🕐 ${fmtDate(l.logged_at)}</span>
-            <button class="del_btn" type="button" data-id="${l.id}">Remove</button>
+            ${l.source === "manual" ? `<button class="del_btn" type="button" data-id="${l.id}">Remove</button>` : ""}
           </div>
         </div>
       `).join("")}</div>`;
@@ -520,18 +569,19 @@
             fetch(`${API_BASE}/timeline/history?limit=200`, { headers: h }),
           ]);
           if (sR.ok && lR.ok) {
-            stats = await sR.json();
-            logs = await lR.json();
-            saveLogs(logs);
+            const backendLogs = await lR.json();
+            saveLogs(backendLogs.map(item => ({ ...item, source: item.source || "manual" })));
+            logs = getCombinedLogs();
+            stats = calcStats(logs);
           } else throw new Error();
         } catch {
           backendAvailable = false;
-          stats = calcStats();
-          logs = getLogs();
+          logs = getCombinedLogs();
+          stats = calcStats(logs);
         }
       } else {
-        stats = calcStats();
-        logs = getLogs();
+        logs = getCombinedLogs();
+        stats = calcStats(logs);
       }
 
       allLogs = logs;

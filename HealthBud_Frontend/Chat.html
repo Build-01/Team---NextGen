@@ -84,6 +84,7 @@
     const API_BASE = `${window.location.origin}/api/v1`;
     const STORAGE_KEY = "hb_chat_messages_v1";
     const SESSION_KEY = "hb_chat_session_id_v1";
+    const TIMELINE_KEY = "hb_symptom_logs";
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("messageInput");
     const composerEl = document.getElementById("composer");
@@ -102,7 +103,7 @@
 
     async function checkBackend() {
       try {
-        const res = await fetch("http://127.0.0.1:8000/health", { signal: AbortSignal.timeout(2000) });
+        const res = await fetch(`${window.location.origin}/health`, { signal: AbortSignal.timeout(2000) });
         backendAvailable = res.ok;
       } catch {
         backendAvailable = false;
@@ -281,6 +282,39 @@
       return [{ name: match, severity }];
     }
 
+    function looksLikeFollowUp(text) {
+      const t = String(text || "").toLowerCase();
+      const followUpTerms = [
+        "what should i do",
+        "what now",
+        "is this serious",
+        "is it dangerous",
+        "should i be worried",
+        "still",
+        "again",
+        "worse",
+        "better",
+        "next",
+        "now what",
+      ];
+      return followUpTerms.some(term => t.includes(term));
+    }
+
+    function getRecentTimelineSymptoms(limit = 3) {
+      let logs = [];
+      try { logs = JSON.parse(localStorage.getItem(TIMELINE_KEY) || "[]"); }
+      catch { logs = []; }
+
+      return logs
+        .slice(0, limit)
+        .filter(item => item && item.symptom)
+        .map(item => ({
+          name: String(item.symptom),
+          severity: Number.isFinite(Number(item.severity)) ? Math.max(0, Math.min(10, Number(item.severity))) : 5,
+          notes: item.notes ? String(item.notes).slice(0, 180) : undefined,
+        }));
+    }
+
     function buildAssistantReply(data) {
       const assessment = data.assessment || {};
       const primary = (assessment.assistant_message || assessment.summary || "I’m here with you.").trim();
@@ -308,11 +342,47 @@
       ].filter(Boolean).join("\n");
     }
 
+    function shouldRedirectToUrgentCare(assessment) {
+      const urgency = String(assessment?.urgency_level || "").toLowerCase();
+      return urgency === "high" || urgency === "emergency";
+    }
+
+    function redirectToUrgentCare(assessment) {
+      const urgency = String(assessment?.urgency_level || "high").toLowerCase();
+      const reason = String(assessment?.urgency_reason || "Higher-risk symptoms detected.");
+      const seekWithin = String(assessment?.seek_care_within || "As soon as possible.");
+
+      localStorage.setItem(
+        "hb_urgent_handoff",
+        JSON.stringify({
+          urgency,
+          reason,
+          seekWithin,
+          ts: Date.now(),
+        })
+      );
+
+      addMsg(
+        "assistant",
+        "I’m directing you to urgent care options nearby now so you can get help quickly."
+      );
+
+      setTimeout(() => {
+        const target = `./findcare.html?mode=urgent&urgency=${encodeURIComponent(urgency)}`;
+        window.location.href = target;
+      }, 900);
+    }
+
     async function fetchAssistantReply(text) {
+      const inferredSymptoms = inferSymptomsFromText(text);
+      const timelineSymptoms = inferredSymptoms.length === 0 && looksLikeFollowUp(text)
+        ? getRecentTimelineSymptoms(3)
+        : [];
+
       const payload = {
         message: text,
         locale: "en-NG",
-        symptoms: inferSymptomsFromText(text),
+        symptoms: [...inferredSymptoms, ...timelineSymptoms],
         session_id: sessionId || undefined,
       };
 
@@ -331,7 +401,10 @@
       if (data && typeof data.session_id === "string" && data.session_id.trim()) {
         saveSessionId(data.session_id.trim());
       }
-      return buildAssistantReply(data);
+      return {
+        replyText: buildAssistantReply(data),
+        assessment: data.assessment || {},
+      };
     }
 
     composerEl.addEventListener("submit", async (e) => {
@@ -350,9 +423,13 @@
           await checkBackend();
         }
 
-        const reply = await fetchAssistantReply(text);
+        const result = await fetchAssistantReply(text);
         setStatus("online", "AI Connected");
-        await addAssistantMsgAnimated(reply);
+        await addAssistantMsgAnimated(result.replyText);
+
+        if (shouldRedirectToUrgentCare(result.assessment)) {
+          redirectToUrgentCare(result.assessment);
+        }
       } catch (error) {
         setStatus("offline", "Offline");
         const message = error instanceof Error ? error.message : String(error);
