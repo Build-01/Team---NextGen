@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="./chat.css" />
+  <link rel="stylesheet" href="./Chat.css" />
   <title>HealthBud • Chat</title>
 </head>
 <body>
@@ -81,8 +81,9 @@
     document.getElementById("headerSub").textContent =
       `Hi ${userName} — tell me what’s on your mind. I can chat generally and help with health check-ins too.`;
 
-    const API_BASE = "http://127.0.0.1:8000/api/v1";
+    const API_BASE = `${window.location.origin}/api/v1`;
     const STORAGE_KEY = "hb_chat_messages_v1";
+    const SESSION_KEY = "hb_chat_session_id_v1";
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("messageInput");
     const composerEl = document.getElementById("composer");
@@ -90,6 +91,7 @@
 
     let chat = [];
     let backendAvailable = false;
+    let sessionId = localStorage.getItem(SESSION_KEY) || "";
 
     function setStatus(type, text) {
       const pill = document.getElementById("statusPill");
@@ -134,6 +136,15 @@
 
     function saveChat() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chat));
+    }
+
+    function saveSessionId(id) {
+      sessionId = id || "";
+      if (sessionId) {
+        localStorage.setItem(SESSION_KEY, sessionId);
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
     }
 
     function renderWelcome() {
@@ -255,6 +266,7 @@
         message: text,
         locale: "en-NG",
         symptoms: inferSymptomsFromText(text),
+        session_id: sessionId || undefined,
       };
 
       const res = await fetch(`${API_BASE}/chat/assess`, {
@@ -269,6 +281,9 @@
       }
 
       const data = await res.json();
+      if (data && typeof data.session_id === "string" && data.session_id.trim()) {
+        saveSessionId(data.session_id.trim());
+      }
       return buildAssistantReply(data);
     }
 
@@ -305,6 +320,7 @@
       if (chat.length && !confirm("Clear this conversation?")) return;
       chat = [];
       saveChat();
+      saveSessionId("");
       render();
     });
 

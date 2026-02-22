@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.db.models import ChatRecord, SymptomRecord
 from app.db.session import get_db_session
 from app.models.chat import ChatAssessmentRequest, ChatAssessmentResponse, StoredChatAnalysisResponse
@@ -21,13 +22,41 @@ async def assess_health_concern(
     chatbot_service: ChatbotService = Depends(get_chatbot_service),
     db: Session = Depends(get_db_session),
 ) -> ChatAssessmentResponse:
-    chat_id = payload.session_id or str(uuid4())
+    session_id = payload.session_id or str(uuid4())
+    turn_id = str(uuid4())
     recorded_at = datetime.now(UTC)
-    assessment = chatbot_service.assess_health_input(payload)
+
+    settings = get_settings()
+    history_limit = max(0, settings.memory_turn_window)
+    conversation_history: list[dict] = []
+    if history_limit > 0:
+        history_statement = (
+            select(ChatRecord)
+            .where(ChatRecord.session_id == session_id)
+            .order_by(ChatRecord.chat_number.desc())
+            .limit(history_limit)
+        )
+        recent_turns = list(db.execute(history_statement).scalars().all())
+        recent_turns.reverse()
+        for turn in recent_turns:
+            turn_assessment = turn.assessment if isinstance(turn.assessment, dict) else {}
+            conversation_history.append(
+                {
+                    "chat_number": turn.chat_number,
+                    "recorded_at": turn.recorded_at.isoformat() if turn.recorded_at else None,
+                    "user_message": turn.message,
+                    "assistant_message": str(turn_assessment.get("assistant_message") or ""),
+                    "summary": str(turn_assessment.get("summary") or ""),
+                    "urgency_level": str(turn_assessment.get("urgency_level") or ""),
+                }
+            )
+
+    assessment = chatbot_service.assess_health_input(payload, conversation_history=conversation_history)
 
     patient_context = payload.patient_context
     chat_record = ChatRecord(
-        chat_id=chat_id,
+        chat_id=turn_id,
+        session_id=session_id,
         message=payload.message,
         locale=payload.locale,
         recorded_at=recorded_at,
@@ -67,7 +96,7 @@ async def assess_health_concern(
 
     return ChatAssessmentResponse(
         chat_number=chat_record.chat_number,
-        session_id=chat_id,
+        session_id=session_id,
         timestamp=recorded_at,
         assessment=assessment,
     )

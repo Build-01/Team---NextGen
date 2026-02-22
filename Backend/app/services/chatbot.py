@@ -13,6 +13,7 @@ You are HealthBud, a healthcare intake and triage assistant for web users.
 - You can reply to ANY user message (health or non-health).
 - If message is not health-related, respond conversationally and gently steer to health check-in.
 - For health-related messages, provide practical triage guidance with calm tone.
+- Use conversation_history to keep continuity with prior user and assistant turns.
 - You are not a doctor and must not provide final diagnosis.
 Return only valid JSON with the following keys exactly:
 assistant_message, summary, follow_up_questions, possible_conditions, possible_remedies,
@@ -37,15 +38,23 @@ class ChatbotService:
             site_url=settings.openrouter_site_url,
         )
 
-    def assess_health_input(self, payload: ChatAssessmentRequest) -> AssessmentData:
+    def assess_health_input(
+        self,
+        payload: ChatAssessmentRequest,
+        conversation_history: list[dict] | None = None,
+    ) -> AssessmentData:
         if not self._client.enabled:
             return self._fallback_for_any_message(payload)
+
+        conversation_history = conversation_history or []
+        health_related = self._looks_like_health_message(payload, conversation_history)
 
         user_input = {
             "message": payload.message,
             "symptoms": [symptom.model_dump() for symptom in payload.symptoms],
             "patient_context": payload.patient_context.model_dump() if payload.patient_context else {},
             "locale": payload.locale,
+            "conversation_history": conversation_history,
         }
 
         try:
@@ -56,7 +65,7 @@ class ChatbotService:
             )
             normalized = self._normalize_assessment_payload(
                 parsed=parsed,
-                health_related=self._looks_like_health_message(payload),
+                health_related=health_related,
             )
             return AssessmentData.model_validate(normalized)
         except Exception as exc:
@@ -198,11 +207,20 @@ class ChatbotService:
             return self._fallback_assessment(payload)
         return self._fallback_general_message(payload)
 
-    def _looks_like_health_message(self, payload: ChatAssessmentRequest) -> bool:
+    def _looks_like_health_message(
+        self,
+        payload: ChatAssessmentRequest,
+        conversation_history: list[dict] | None = None,
+    ) -> bool:
         if payload.symptoms:
             return True
 
         text = payload.message.lower()
+        history_text = " ".join(
+            str(turn.get("user_message", "")).lower()
+            for turn in (conversation_history or [])
+        )
+        combined = f"{text} {history_text}".strip()
         health_terms = {
             "pain",
             "fever",
@@ -218,7 +236,7 @@ class ChatbotService:
             "sick",
             "ill",
         }
-        return any(term in text for term in health_terms)
+        return any(term in combined for term in health_terms)
 
     def _fallback_general_message(self, payload: ChatAssessmentRequest) -> AssessmentData:
         message_excerpt = payload.message.strip()[:180]

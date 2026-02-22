@@ -146,7 +146,7 @@ class ChatAnalysisService:
 
         return StoredChatAnalysisResponse(
             chat_number=chat_record.chat_number,
-            session_id=chat_record.chat_id,
+            session_id=chat_record.session_id,
             analyzed_at=datetime.now(UTC),
             urgency_level=urgency,
             urgency_reason=parsed.get("urgency_reason", "Urgency estimated from symptom pattern and severity."),
@@ -218,7 +218,7 @@ class ChatAnalysisService:
 
         return StoredChatAnalysisResponse(
             chat_number=chat_record.chat_number,
-            session_id=chat_record.chat_id,
+            session_id=chat_record.session_id,
             analyzed_at=datetime.now(UTC),
             urgency_level=urgency,
             urgency_reason=urgency_reason,

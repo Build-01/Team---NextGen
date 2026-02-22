@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -12,7 +13,11 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 class Settings(BaseSettings):
     app_name: str = "HealthBud Backend"
     debug: bool = True
-    database_url: str = "sqlite:///./healthbud.db"
+    database_url: str = Field(
+        default_factory=lambda: "sqlite:////tmp/healthbud.db"
+        if os.getenv("VERCEL") == "1"
+        else "sqlite:///./healthbud.db"
+    )
 
     llm_provider: str = "openrouter"
     openrouter_api_key: str | None = None
@@ -22,6 +27,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.0-flash"
+    memory_turn_window: int = 8
     enable_web_search: bool = True
     web_search_max_results: int = 8
     trusted_medical_domains: Annotated[list[str], NoDecode] = Field(default_factory=lambda: [

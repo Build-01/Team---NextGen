@@ -13,6 +13,7 @@ class ChatRecord(Base):
 
     chat_number: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     chat_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
     message: Mapped[str] = mapped_column(Text)
     locale: Mapped[str] = mapped_column(String(15), default="en-NG")
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
