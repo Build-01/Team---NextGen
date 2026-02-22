@@ -10,12 +10,12 @@ class SymptomInput(BaseModel):
     symptom_started_at: datetime | None = None
     body_location: str | None = Field(default=None, max_length=120)
     character: str | None = Field(default=None, max_length=120)
-    aggravating_factors: list[str] = Field(default_factory=list)
+    aggravating_factors: list[str] = Field(default_factory=list, max_length=12)
     radiation: str | None = Field(default=None, max_length=200)
     duration_pattern: str | None = Field(default=None, max_length=120)
     timing_pattern: str | None = Field(default=None, max_length=120)
-    relieving_factors: list[str] = Field(default_factory=list)
-    associated_symptoms: list[str] = Field(default_factory=list)
+    relieving_factors: list[str] = Field(default_factory=list, max_length=12)
+    associated_symptoms: list[str] = Field(default_factory=list, max_length=20)
     progression: str | None = Field(default=None, max_length=120)
     is_constant: bool | None = None
     duration_hours: int | None = Field(default=None, ge=0)
@@ -25,9 +25,9 @@ class SymptomInput(BaseModel):
 class PatientContext(BaseModel):
     age: int | None = Field(default=None, ge=0, le=130)
     biological_sex: str | None = Field(default=None, max_length=20)
-    chronic_conditions: list[str] = Field(default_factory=list)
-    current_medications: list[str] = Field(default_factory=list)
-    allergies: list[str] = Field(default_factory=list)
+    chronic_conditions: list[str] = Field(default_factory=list, max_length=25)
+    current_medications: list[str] = Field(default_factory=list, max_length=25)
+    allergies: list[str] = Field(default_factory=list, max_length=25)
 
 
 class UrgencyLevel(str, Enum):
@@ -54,10 +54,10 @@ class AssessmentData(BaseModel):
 
 class ChatAssessmentRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=12000)
-    symptoms: list[SymptomInput] = Field(default_factory=list)
+    symptoms: list[SymptomInput] = Field(default_factory=list, max_length=20)
     patient_context: PatientContext | None = None
-    locale: str = Field(default="en-NG", max_length=15)
-    session_id: str | None = None
+    locale: str = Field(default="en-NG", max_length=15, pattern=r"^[a-zA-Z]{2,3}(?:-[a-zA-Z]{2,4})?$")
+    session_id: str | None = Field(default=None, max_length=64, pattern=r"^[a-zA-Z0-9-]+$")
 
     @field_validator("message")
     @classmethod
@@ -102,3 +102,16 @@ class StoredChatAnalysisResponse(BaseModel):
     recommended_remedies: list[str] = Field(default_factory=list)
     red_flags: list[str] = Field(default_factory=list)
     disclaimer: str
+
+
+class ChatLogEntry(BaseModel):
+    id: int
+    role: str
+    content: str
+    timestamp: datetime
+
+
+class ChatSessionLogsResponse(BaseModel):
+    session_id: str
+    total_messages: int
+    logs: list[ChatLogEntry] = Field(default_factory=list)

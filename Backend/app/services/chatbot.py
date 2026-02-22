@@ -9,9 +9,14 @@ from app.services.gemini_client import LLMClient
 SYSTEM_PROMPT = """
 You are HealthBud, a healthcare intake and triage assistant for web users.
 - Reply naturally and conversationally in assistant_message.
+- Start with empathy and reassurance in a warm, friendly tone.
+- Address the person directly as "you"; never refer to them as "the user", "this user", "the patient", or in third person.
 - You can reply to ANY user message (health or non-health).
 - If message is not health-related, respond conversationally and gently steer to health check-in.
 - For health-related messages, provide practical triage guidance with calm tone.
+- Use conversation_history to keep continuity with prior user and assistant turns.
+- For health-related messages, include 3 to 6 concise diagnostic follow-up questions in follow_up_questions.
+- Prefer targeted questions that clarify onset, duration, severity, associated symptoms, red flags, and relevant medical history.
 - You are not a doctor and must not provide final diagnosis.
 Return only valid JSON with the following keys exactly:
 assistant_message, summary, follow_up_questions, possible_conditions, possible_remedies,
@@ -36,15 +41,23 @@ class ChatbotService:
             site_url=settings.openrouter_site_url,
         )
 
-    def assess_health_input(self, payload: ChatAssessmentRequest) -> AssessmentData:
+    def assess_health_input(
+        self,
+        payload: ChatAssessmentRequest,
+        conversation_history: list[dict] | None = None,
+    ) -> AssessmentData:
         if not self._client.enabled:
             return self._fallback_for_any_message(payload)
+
+        conversation_history = conversation_history or []
+        health_related = self._looks_like_health_message(payload, conversation_history)
 
         user_input = {
             "message": payload.message,
             "symptoms": [symptom.model_dump() for symptom in payload.symptoms],
             "patient_context": payload.patient_context.model_dump() if payload.patient_context else {},
             "locale": payload.locale,
+            "conversation_history": conversation_history,
         }
 
         try:
@@ -55,7 +68,7 @@ class ChatbotService:
             )
             normalized = self._normalize_assessment_payload(
                 parsed=parsed,
-                health_related=self._looks_like_health_message(payload),
+                health_related=health_related,
             )
             return AssessmentData.model_validate(normalized)
         except Exception as exc:
@@ -117,8 +130,69 @@ class ChatbotService:
             normalized["follow_up_questions"] = []
             normalized["red_flags"] = []
             normalized["specialist_types"] = []
+        elif not normalized["follow_up_questions"]:
+            normalized["follow_up_questions"] = [
+                "When did this start, and has it been getting better, worse, or staying the same?",
+                "How severe is it right now on a scale of 0 to 10?",
+                "Do you have any other symptoms like fever, shortness of breath, vomiting, or dizziness?",
+                "What makes it better or worse, and have you tried any treatment so far?",
+            ]
 
-        return normalized
+        return self._enforce_second_person_voice(normalized)
+
+    def _enforce_second_person_voice(self, assessment: dict) -> dict:
+        def rewrite(text: str) -> str:
+            rewritten = text
+            replacements = {
+                "The user": "You",
+                "the user": "you",
+                "This user": "You",
+                "this user": "you",
+                "The patient": "You",
+                "the patient": "you",
+                "User reports": "You report",
+                "user reports": "you report",
+                "User is": "You are",
+                "user is": "you are",
+                "User has": "You have",
+                "user has": "you have",
+                "Patient reports": "You report",
+                "patient reports": "you report",
+                "Patient is": "You are",
+                "patient is": "you are",
+                "Patient has": "You have",
+                "patient has": "you have",
+            }
+            for source, target in replacements.items():
+                rewritten = rewritten.replace(source, target)
+            return rewritten
+
+        text_fields = [
+            "assistant_message",
+            "summary",
+            "urgency_reason",
+            "seek_care_within",
+            "safety_disclaimer",
+        ]
+        list_fields = [
+            "follow_up_questions",
+            "possible_conditions",
+            "possible_remedies",
+            "red_flags",
+            "specialist_types",
+        ]
+
+        for field in text_fields:
+            value = assessment.get(field)
+            if isinstance(value, str):
+                assessment[field] = rewrite(value)
+
+        for field in list_fields:
+            value = assessment.get(field)
+            if isinstance(value, list):
+                assessment[field] = [rewrite(item) if isinstance(item, str) else item for item in value]
+
+        return assessment
 
     def _normalize_urgency(self, value: object) -> str:
         if isinstance(value, str):
@@ -143,11 +217,20 @@ class ChatbotService:
             return self._fallback_assessment(payload)
         return self._fallback_general_message(payload)
 
-    def _looks_like_health_message(self, payload: ChatAssessmentRequest) -> bool:
+    def _looks_like_health_message(
+        self,
+        payload: ChatAssessmentRequest,
+        conversation_history: list[dict] | None = None,
+    ) -> bool:
         if payload.symptoms:
             return True
 
         text = payload.message.lower()
+        history_text = " ".join(
+            str(turn.get("user_message", "")).lower()
+            for turn in (conversation_history or [])
+        )
+        combined = f"{text} {history_text}".strip()
         health_terms = {
             "pain",
             "fever",
@@ -163,7 +246,7 @@ class ChatbotService:
             "sick",
             "ill",
         }
-        return any(term in text for term in health_terms)
+        return any(term in combined for term in health_terms)
 
     def _fallback_general_message(self, payload: ChatAssessmentRequest) -> AssessmentData:
         message_excerpt = payload.message.strip()[:180]

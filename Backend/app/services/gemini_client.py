@@ -12,10 +12,10 @@ class LLMClient:
         site_url: str = "http://localhost",
     ) -> None:
         self._provider = provider.strip().lower()
-        self._api_key = api_key
-        self._model = model
-        self._app_name = app_name
-        self._site_url = site_url
+        self._api_key = api_key.strip() if isinstance(api_key, str) else api_key
+        self._model = model.strip() if isinstance(model, str) else model
+        self._app_name = app_name.strip() if isinstance(app_name, str) else app_name
+        self._site_url = site_url.strip() if isinstance(site_url, str) else site_url
 
     @property
     def enabled(self) -> bool:
@@ -58,6 +58,7 @@ class LLMClient:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(user_payload)},
             ],
+            "response_format": {"type": "json_object"},
         }
 
         request_data = json.dumps(payload).encode("utf-8")
@@ -88,8 +89,44 @@ class LLMClient:
             raise RuntimeError("OpenRouter returned no choices")
 
         message = choices[0].get("message", {})
-        content = message.get("content", "")
+        content = self._extract_openrouter_text(message)
+        if not content:
+            fallback_text = choices[0].get("text", "")
+            content = fallback_text if isinstance(fallback_text, str) else ""
         return self._safe_parse_json(content)
+
+    def _extract_openrouter_text(self, message: dict) -> str:
+        if not isinstance(message, dict):
+            return ""
+
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text_value = item.get("text") or item.get("content")
+                    if isinstance(text_value, str):
+                        parts.append(text_value)
+            if parts:
+                return "".join(parts)
+
+        tool_calls = message.get("tool_calls", [])
+        if isinstance(tool_calls, list):
+            for call in tool_calls:
+                if not isinstance(call, dict):
+                    continue
+                function_payload = call.get("function", {})
+                if isinstance(function_payload, dict):
+                    arguments = function_payload.get("arguments")
+                    if isinstance(arguments, str) and arguments.strip():
+                        return arguments
+
+        return ""
 
     def _generate_gemini_json(
         self,
@@ -153,7 +190,7 @@ class LLMClient:
         return self._safe_parse_json(text_output)
 
     def _safe_parse_json(self, text: str) -> dict:
-        cleaned = text.strip()
+        cleaned = str(text or "").strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.strip("`")
             if cleaned.startswith("json"):
@@ -172,6 +209,11 @@ class LLMClient:
                 parsed = json.loads(candidate)
                 if isinstance(parsed, dict):
                     return parsed
+            if cleaned:
+                return {
+                    "assistant_message": cleaned,
+                    "summary": cleaned,
+                }
             raise RuntimeError("Model response was not valid JSON")
 
 
