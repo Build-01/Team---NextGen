@@ -65,9 +65,6 @@
   </main>
 
   <script>
-    // ═══════════════════════════════════════
-    // 0) Auth guard
-    // ═══════════════════════════════════════
     const token = localStorage.getItem("hb_token");
     if (!token) window.location.href = "./getstarted.html";
 
@@ -82,27 +79,17 @@
     } catch {}
 
     document.getElementById("headerSub").textContent =
-      `Hi ${userName} — tell me what's going on and I'll help you think through it.`;
+      `Hi ${userName} — tell me what’s on your mind. I can chat generally and help with health check-ins too.`;
 
-    // ═══════════════════════════════════════
-    // 1) Backend detection
-    // ═══════════════════════════════════════
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = "http://127.0.0.1:8000/api/v1";
+    const STORAGE_KEY = "hb_chat_messages_v1";
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("messageInput");
+    const composerEl = document.getElementById("composer");
+    const sendBtn = document.getElementById("sendBtn");
+
+    let chat = [];
     let backendAvailable = false;
-    let conversationId = null;
-
-    async function checkBackend() {
-      try {
-        const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          backendAvailable = true;
-          setStatus("online", "AI Connected");
-        }
-      } catch {
-        backendAvailable = false;
-        setStatus("offline", "Ready");
-      }
-    }
 
     function setStatus(type, text) {
       const pill = document.getElementById("statusPill");
@@ -111,18 +98,34 @@
       label.textContent = text;
     }
 
-    checkBackend();
+    async function checkBackend() {
+      try {
+        const res = await fetch("http://127.0.0.1:8000/health", { signal: AbortSignal.timeout(2000) });
+        backendAvailable = res.ok;
+      } catch {
+        backendAvailable = false;
+      }
+      setStatus(backendAvailable ? "online" : "offline", backendAvailable ? "AI Connected" : "Offline");
+    }
 
-    // ═══════════════════════════════════════
-    // 2) State + persistence
-    // ═══════════════════════════════════════
-    const STORAGE_KEY = "hb_chat_messages_v1";
-    const messagesEl  = document.getElementById("messages");
-    const inputEl     = document.getElementById("messageInput");
-    const composerEl  = document.getElementById("composer");
-    const sendBtn     = document.getElementById("sendBtn");
+    function esc(s) {
+      return s
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
 
-    let chat = [];
+    function formatText(text) {
+      let html = esc(text || "");
+      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      return html;
+    }
+
+    function timeStr(ts) {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
 
     function loadChat() {
       try { chat = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
@@ -133,28 +136,31 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chat));
     }
 
-    // ═══════════════════════════════════════
-    // 3) Render
-    // ═══════════════════════════════════════
-    function esc(s) {
-      return s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-              .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-    }
+    function renderWelcome() {
+      messagesEl.innerHTML = `
+        <div class="welcome">
+          <div class="welcome_icon">🩺</div>
+          <h3>How can I help you today?</h3>
+          <p>I can chat naturally and also help with symptom check-ins when needed.</p>
+          <div class="quick_chips" id="quickChips">
+            <button class="chip" type="button">🤒 I have a fever</button>
+            <button class="chip" type="button">🤕 Headache for days</button>
+            <button class="chip" type="button">💬 How are you?</button>
+            <button class="chip" type="button">😮‍💨 Shortness of breath</button>
+          </div>
+        </div>
+      `;
 
-    function formatText(text) {
-      // Convert **bold** to <strong>
-      let html = esc(text);
-      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-      return html;
-    }
-
-    function timeStr(ts) {
-      return new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+      messagesEl.querySelectorAll(".chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          inputEl.value = chip.textContent.replace(/^.{2}/, "").trim();
+          composerEl.dispatchEvent(new Event("submit", { cancelable: true }));
+        });
+      });
     }
 
     function render() {
       messagesEl.innerHTML = "";
-
       if (chat.length === 0) {
         renderWelcome();
         return;
@@ -164,232 +170,18 @@
         const isUser = msg.role === "user";
         const row = document.createElement("div");
         row.className = `msg ${msg.role}`;
-
         row.innerHTML = `
           <div class="msg_avatar">${isUser ? userInitial : "🩺"}</div>
           <div class="bubble">
             <div class="text">${formatText(msg.text)}</div>
-            <div class="time">
-              ${isUser ? "" : "🩺 HealthBud · "}${timeStr(msg.ts)}
-            </div>
+            <div class="time">${isUser ? "" : "🩺 HealthBud · "}${timeStr(msg.ts)}</div>
           </div>
         `;
         messagesEl.appendChild(row);
       }
-
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    function renderWelcome() {
-      messagesEl.innerHTML = `
-        <div class="welcome">
-          <div class="welcome_icon">🩺</div>
-          <h3>How can I help you today?</h3>
-          <p>
-            Describe your symptoms, ask health questions, or pick a topic below.
-            I'll help you understand what might be going on and when to seek care.
-          </p>
-          <div class="quick_chips" id="quickChips">
-            <button class="chip" type="button">🤒 I have a fever</button>
-            <button class="chip" type="button">🤕 Headache for days</button>
-            <button class="chip" type="button">🤢 Feeling nauseous</button>
-            <button class="chip" type="button">😮‍💨 Shortness of breath</button>
-            <button class="chip" type="button">😴 Always tired</button>
-            <button class="chip" type="button">🩹 I got injured</button>
-            <button class="chip" type="button">😟 Feeling anxious</button>
-            <button class="chip" type="button">🤧 Cold or flu symptoms</button>
-          </div>
-        </div>
-      `;
-
-      // Chip click handlers
-      messagesEl.querySelectorAll(".chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-          inputEl.value = chip.textContent.replace(/^.{2}/, "").trim();
-          composerEl.dispatchEvent(new Event("submit", { cancelable: true }));
-        });
-      });
-    }
-
-    // ═══════════════════════════════════════
-    // 4) Demo assistant
-    // ═══════════════════════════════════════
-    function demoReply(text) {
-      const t = text.toLowerCase();
-
-      const emergency = /chest pain|can't breathe|cannot breathe|severe bleeding|faint|stroke|suicid|overdose|heart attack|seizure/.test(t);
-      if (emergency) {
-        return "⚠️ **This sounds like it could be a medical emergency.**\n\n" +
-          "Please take these steps now:\n" +
-          "• **Call emergency services** (911 / 999 / 112)\n" +
-          "• If someone is with you, ask them to help\n" +
-          "• Don't drive yourself — wait for emergency services\n\n" +
-          "If you're safe and want to describe more, I'm here.\n\n" +
-          "⚕️ *This is informational guidance, not a medical diagnosis.*";
-      }
-
-      const greeting = /^(hi|hello|hey|good morning|good afternoon|good evening|sup|yo)[\s!.,]*$/i.test(text.trim());
-      if (greeting) {
-        return `Hey ${userName}! 👋\n\nI'm your HealthBud assistant. Tell me about:\n\n` +
-          "• **Symptoms** you're experiencing\n" +
-          "• **How long** they've been going on\n" +
-          "• **Anything else** on your mind\n\n" +
-          "What's going on today?";
-      }
-
-      const thanks = /^(thanks|thank you|thx|ty|appreciate)[\s!.,]*$/i.test(text.trim());
-      if (thanks) {
-        return "You're welcome! 😊 Remember to take care of yourself. I'm here if you need anything else.\n\n" +
-          "⚕️ *This is informational guidance, not a medical diagnosis.*";
-      }
-
-      // Symptom detection
-      const fever     = /fever|temperature|chills|sweating/.test(t);
-      const headache  = /headache|head hurt|head pain|migraine/.test(t);
-      const stomach   = /stomach|nausea|vomit|diarrhea|abdomen|belly|cramp/.test(t);
-      const throat    = /sore throat|throat pain|swallow|tonsil/.test(t);
-      const cough     = /cough|congestion|runny nose|cold|flu|sneez/.test(t);
-      const skin      = /rash|itch|hives|swelling|bump|bruise/.test(t);
-      const pain      = /pain|hurt|ache|sore|tender/.test(t);
-      const fatigue   = /tired|fatigue|exhausted|weak|drowsy|no energy/.test(t);
-      const anxiety   = /anxi|stress|panic|nervous|worried|can't sleep|insomnia/.test(t);
-      const injury    = /fall|fell|twist|sprain|broken|fracture|cut|wound|burn/.test(t);
-      const breath    = /breath|breathing|shortness|wheez/.test(t);
-
-      let reply = `Thanks for sharing that, ${userName}. Let me help.\n\n`;
-      let q = [], tips = [];
-
-      if (fever) {
-        q.push("What's the highest temperature you've measured?");
-        q.push("When did it start?");
-        q.push("Any body aches, chills, or rash?");
-        tips.push("Stay hydrated and rest");
-        tips.push("Over-the-counter fever reducers may help");
-        tips.push("**Seek care** if it's above 103°F (39.4°C) or lasts 3+ days");
-      }
-      if (headache) {
-        q.push("Where exactly is the pain — front, sides, or back?");
-        q.push("Severity on a 0–10 scale?");
-        q.push("Any sensitivity to light, nausea, or vision changes?");
-        tips.push("Rest in a dark, quiet room");
-        tips.push("Hydrate — dehydration is a common trigger");
-        tips.push("**Seek care** if sudden and severe, or the worst headache ever");
-      }
-      if (stomach) {
-        q.push("Where is the discomfort — upper, lower, left, right?");
-        q.push("Any vomiting, diarrhea, or blood?");
-        q.push("Eaten anything unusual recently?");
-        tips.push("Try bland foods — toast, rice, bananas");
-        tips.push("Sip clear fluids slowly");
-        tips.push("**Seek care** if severe pain, blood, or can't keep fluids down");
-      }
-      if (throat) {
-        q.push("Can you swallow liquids okay?");
-        q.push("Any white patches on your tonsils?");
-        q.push("Fever or swollen glands?");
-        tips.push("Warm salt water gargles help");
-        tips.push("Stay hydrated with warm liquids");
-        tips.push("**Seek care** if it lasts over a week or breathing is affected");
-      }
-      if (cough) {
-        q.push("Dry cough or producing mucus?");
-        q.push("What color is the mucus?");
-        q.push("Any wheezing or shortness of breath?");
-        tips.push("Honey in warm water soothes a cough");
-        tips.push("Use a humidifier");
-        tips.push("**Seek care** if coughing blood or difficulty breathing");
-      }
-      if (breath) {
-        q.push("Does it happen at rest or only with activity?");
-        q.push("When did this start?");
-        q.push("Any chest pain, wheezing, or swelling?");
-        tips.push("Sit upright and try slow, deep breaths");
-        tips.push("**Seek urgent care** if it's sudden, severe, or with chest pain");
-      }
-      if (skin) {
-        q.push("Where on your body is it?");
-        q.push("Is it spreading, itchy, or painful?");
-        q.push("Started any new products or medications?");
-        tips.push("Avoid scratching");
-        tips.push("A cool compress may help");
-        tips.push("**Seek care** if spreading rapidly or face/throat swelling");
-      }
-      if (anxiety) {
-        q.push("How long have you been feeling this way?");
-        q.push("Specific triggers or random onset?");
-        q.push("Affecting sleep, appetite, or daily life?");
-        tips.push("Try breathing: in 4 counts, hold 4, out 6");
-        tips.push("Physical activity helps reduce anxiety");
-        tips.push("Speaking to a professional is a sign of **strength**");
-      }
-      if (injury) {
-        q.push("How did it happen?");
-        q.push("Can you move the affected area?");
-        q.push("Swelling, bruising, or deformity?");
-        tips.push("**RICE**: Rest, Ice (20 min on/off), Compression, Elevation");
-        tips.push("**Seek care** if you can't bear weight or there's visible deformity");
-      }
-      if (fatigue) {
-        q.push("How long has this been going on?");
-        q.push("Getting 7–9 hours of sleep?");
-        q.push("Changes in appetite, weight, or mood?");
-        tips.push("Prioritize consistent sleep times");
-        tips.push("Stay hydrated and eat balanced meals");
-        tips.push("**Seek care** if persistent (2+ weeks) or worsening");
-      }
-
-      // Fallback
-      if (!q.length) {
-        q.push("When did this start?");
-        q.push("Is it getting better, worse, or staying the same?");
-        q.push("Any other symptoms alongside this?");
-        q.push("Severity on a 0–10 scale?");
-        tips.push("Track your symptoms — timing and triggers help");
-        tips.push("Stay hydrated and rest");
-        tips.push("**Seek care** if symptoms are severe or worsening");
-      }
-
-      reply += "📋 **Let me ask a few things:**\n";
-      q.forEach(x => reply += `• ${x}\n`);
-      reply += "\n💡 **In the meantime:**\n";
-      tips.forEach(x => reply += `• ${x}\n`);
-      reply += "\nShare more details and I'll refine my suggestions.\n\n";
-      reply += "⚕️ *This is informational guidance, not a medical diagnosis. Please consult a healthcare professional.*";
-
-      return reply;
-    }
-
-    // ═══════════════════════════════════════
-    // 5) Backend call
-    // ═══════════════════════════════════════
-    async function getBackendReply(text) {
-      try {
-        const body = { message: text };
-        if (conversationId) body.conversation_id = conversationId;
-
-        const res = await fetch(`${API_BASE}/chat/send`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        conversationId = data.conversation_id;
-        return data.assistant_message.content;
-      } catch {
-        backendAvailable = false;
-        setStatus("offline", "Offline");
-        return demoReply(text);
-      }
-    }
-
-    // ═══════════════════════════════════════
-    // 6) Send message
-    // ═══════════════════════════════════════
     function addMsg(role, text) {
       chat.push({ role, text, ts: Date.now() });
       saveChat();
@@ -417,6 +209,69 @@
       if (el) el.remove();
     }
 
+    function inferSymptomsFromText(text) {
+      const cleaned = text.toLowerCase();
+      const known = [
+        "chest pain", "shortness of breath", "headache", "fever", "nausea",
+        "cough", "vomiting", "dizziness", "abdominal pain", "sore throat"
+      ];
+      const match = known.find(symptom => cleaned.includes(symptom));
+      if (!match) return [];
+
+      const levelMatch = text.match(/\b(?:severity|pain\s*level|level)\s*(?:is|=|:)?\s*(10|[0-9])\b/i);
+      const severity = levelMatch ? Math.max(0, Math.min(10, Number(levelMatch[1]))) : 5;
+      return [{ name: match, severity }];
+    }
+
+    function buildAssistantReply(data) {
+      const assessment = data.assessment || {};
+      const primary = (assessment.assistant_message || assessment.summary || "I’m here with you.").trim();
+      if (assessment.show_structured_output === false) {
+        return primary;
+      }
+
+      const conditions = (assessment.possible_conditions || []).join(", ") || "No clear condition listed";
+      const remedies = (assessment.possible_remedies || []).map(item => `• ${item}`).join("\n");
+      const followUps = (assessment.follow_up_questions || []).map(item => `• ${item}`).join("\n");
+
+      return [
+        primary,
+        "",
+        "---",
+        "",
+        `Urgency: ${assessment.urgency_level || "unknown"}`,
+        `When to seek care: ${assessment.seek_care_within || "N/A"}`,
+        `Reason: ${assessment.urgency_reason || "N/A"}`,
+        "",
+        `Summary: ${assessment.summary || "N/A"}`,
+        `Possible conditions: ${conditions}`,
+        remedies ? `\nPossible remedies:\n${remedies}` : "",
+        followUps ? `\nFollow-up questions:\n${followUps}` : "",
+      ].filter(Boolean).join("\n");
+    }
+
+    async function fetchAssistantReply(text) {
+      const payload = {
+        message: text,
+        locale: "en-NG",
+        symptoms: inferSymptomsFromText(text),
+      };
+
+      const res = await fetch(`${API_BASE}/chat/assess`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const details = await res.text();
+        throw new Error(`Backend request failed (${res.status}): ${details}`);
+      }
+
+      const data = await res.json();
+      return buildAssistantReply(data);
+    }
+
     composerEl.addEventListener("submit", async (e) => {
       e.preventDefault();
       const text = inputEl.value.trim();
@@ -426,38 +281,36 @@
       inputEl.value = "";
       inputEl.focus();
       sendBtn.disabled = true;
-
       showTyping();
 
-      let reply;
-      if (backendAvailable) {
-        reply = await getBackendReply(text);
-      } else {
-        await new Promise(r => setTimeout(r, 350 + Math.random() * 500));
-        reply = demoReply(text);
-      }
+      try {
+        if (!backendAvailable) {
+          await checkBackend();
+        }
 
-      hideTyping();
-      sendBtn.disabled = false;
-      addMsg("assistant", reply);
+        const reply = await fetchAssistantReply(text);
+        setStatus("online", "AI Connected");
+        addMsg("assistant", reply);
+      } catch (error) {
+        setStatus("offline", "Offline");
+        const message = error instanceof Error ? error.message : String(error);
+        addMsg("assistant", `I’m having trouble reaching the AI service right now. ${message}`);
+      } finally {
+        hideTyping();
+        sendBtn.disabled = false;
+      }
     });
 
-    // ═══════════════════════════════════════
-    // 7) Clear
-    // ═══════════════════════════════════════
     document.getElementById("clearBtn").addEventListener("click", () => {
       if (chat.length && !confirm("Clear this conversation?")) return;
       chat = [];
-      conversationId = null;
       saveChat();
       render();
     });
 
-    // ═══════════════════════════════════════
-    // Init
-    // ═══════════════════════════════════════
     loadChat();
     render();
+    checkBackend();
   </script>
 </body>
 </html>

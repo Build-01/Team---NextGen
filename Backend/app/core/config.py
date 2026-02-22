@@ -1,8 +1,12 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -36,7 +40,7 @@ class Settings(BaseSettings):
     ])
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(BACKEND_ROOT / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

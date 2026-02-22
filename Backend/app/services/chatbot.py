@@ -9,6 +9,7 @@ from app.services.gemini_client import LLMClient
 SYSTEM_PROMPT = """
 You are HealthBud, a healthcare intake and triage assistant for web users.
 - Reply naturally and conversationally in assistant_message.
+- Address the person directly as "you"; never refer to them as "the user", "this user", "the patient", or in third person.
 - You can reply to ANY user message (health or non-health).
 - If message is not health-related, respond conversationally and gently steer to health check-in.
 - For health-related messages, provide practical triage guidance with calm tone.
@@ -118,7 +119,61 @@ class ChatbotService:
             normalized["red_flags"] = []
             normalized["specialist_types"] = []
 
-        return normalized
+        return self._enforce_second_person_voice(normalized)
+
+    def _enforce_second_person_voice(self, assessment: dict) -> dict:
+        def rewrite(text: str) -> str:
+            rewritten = text
+            replacements = {
+                "The user": "You",
+                "the user": "you",
+                "This user": "You",
+                "this user": "you",
+                "The patient": "You",
+                "the patient": "you",
+                "User reports": "You report",
+                "user reports": "you report",
+                "User is": "You are",
+                "user is": "you are",
+                "User has": "You have",
+                "user has": "you have",
+                "Patient reports": "You report",
+                "patient reports": "you report",
+                "Patient is": "You are",
+                "patient is": "you are",
+                "Patient has": "You have",
+                "patient has": "you have",
+            }
+            for source, target in replacements.items():
+                rewritten = rewritten.replace(source, target)
+            return rewritten
+
+        text_fields = [
+            "assistant_message",
+            "summary",
+            "urgency_reason",
+            "seek_care_within",
+            "safety_disclaimer",
+        ]
+        list_fields = [
+            "follow_up_questions",
+            "possible_conditions",
+            "possible_remedies",
+            "red_flags",
+            "specialist_types",
+        ]
+
+        for field in text_fields:
+            value = assessment.get(field)
+            if isinstance(value, str):
+                assessment[field] = rewrite(value)
+
+        for field in list_fields:
+            value = assessment.get(field)
+            if isinstance(value, list):
+                assessment[field] = [rewrite(item) if isinstance(item, str) else item for item in value]
+
+        return assessment
 
     def _normalize_urgency(self, value: object) -> str:
         if isinstance(value, str):
