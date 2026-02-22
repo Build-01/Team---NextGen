@@ -130,15 +130,77 @@ class ChatbotService:
             normalized["follow_up_questions"] = []
             normalized["red_flags"] = []
             normalized["specialist_types"] = []
-        elif not normalized["follow_up_questions"]:
-            normalized["follow_up_questions"] = [
+        else:
+            baseline_questions = normalized["follow_up_questions"] or [
                 "When did this start, and has it been getting better, worse, or staying the same?",
                 "How severe is it right now on a scale of 0 to 10?",
                 "Do you have any other symptoms like fever, shortness of breath, vomiting, or dizziness?",
                 "What makes it better or worse, and have you tried any treatment so far?",
             ]
+            vital_questions = self._build_systematic_vital_questions(parsed)
+            normalized["follow_up_questions"] = self._merge_follow_up_questions(
+                vital_questions=vital_questions,
+                existing_questions=baseline_questions,
+            )
 
         return self._enforce_second_person_voice(normalized)
+
+    def _build_systematic_vital_questions(self, parsed: dict) -> list[str]:
+        context = " ".join([
+            str(parsed.get("assistant_message") or ""),
+            str(parsed.get("summary") or ""),
+            " ".join(str(item) for item in parsed.get("possible_conditions", []) if isinstance(item, str)),
+            " ".join(str(item) for item in parsed.get("red_flags", []) if isinstance(item, str)),
+        ]).lower()
+
+        def has_any(terms: list[str]) -> bool:
+            return any(term in context for term in terms)
+
+        questions = [
+            "Let’s do a quick vital check step-by-step. Vital check 1/3: what is your current temperature (°C/°F)?",
+            "Vital check 2/3: what is your current heart rate (beats per minute), if available?",
+            "Vital check 3/3: what is your current blood pressure reading (mmHg), if available?",
+        ]
+
+        respiratory_terms = ["shortness of breath", "breath", "oxygen", "spo2", "cough", "wheeze", "chest"]
+        infection_terms = ["fever", "infection", "chills", "viral", "flu"]
+        neuro_terms = ["dizziness", "faint", "headache", "migraine", "confusion", "stroke"]
+
+        if has_any(respiratory_terms):
+            questions.append(
+                "Additional vital check: what is your oxygen saturation (SpO₂ %) and respiratory rate (breaths per minute), if you can measure them?"
+            )
+        elif has_any(infection_terms):
+            questions.append(
+                "Additional vital check: have you rechecked your temperature in the last 2–4 hours, and what was the value?"
+            )
+        elif has_any(neuro_terms):
+            questions.append(
+                "Additional vital check: while sitting and standing (if safe), what are your blood pressure and pulse readings?"
+            )
+
+        return questions
+
+    def _merge_follow_up_questions(self, vital_questions: list[str], existing_questions: list[str]) -> list[str]:
+        merged: list[str] = []
+        seen: set[str] = set()
+
+        for question in [*vital_questions, *existing_questions]:
+            normalized = str(question).strip()
+            if not normalized:
+                continue
+
+            dedupe_key = normalized.lower()
+            if dedupe_key in seen:
+                continue
+
+            seen.add(dedupe_key)
+            merged.append(normalized)
+
+            if len(merged) >= 6:
+                break
+
+        return merged
 
     def _enforce_second_person_voice(self, assessment: dict) -> dict:
         def rewrite(text: str) -> str:
@@ -312,11 +374,26 @@ class ChatbotService:
             ),
             show_structured_output=True,
             summary="Preliminary triage generated from your message and symptom details.",
-            follow_up_questions=[
-                "When did each symptom start, and has it changed over time?",
-                "Do you have fever, chest pain, shortness of breath, or fainting?",
-                "What medications have you taken for this and did they help?",
-            ],
+            follow_up_questions=self._merge_follow_up_questions(
+                vital_questions=self._build_systematic_vital_questions(
+                    {
+                        "assistant_message": payload.message,
+                        "summary": "Fallback triage",
+                        "possible_conditions": conditions,
+                        "red_flags": [
+                            "Severe chest pain",
+                            "Difficulty breathing",
+                            "Confusion, fainting, or seizures",
+                            "Uncontrolled bleeding",
+                        ],
+                    }
+                ),
+                existing_questions=[
+                    "When did each symptom start, and has it changed over time?",
+                    "Do you have fever, chest pain, shortness of breath, or fainting?",
+                    "What medications have you taken for this and did they help?",
+                ],
+            ),
             possible_conditions=conditions,
             possible_remedies=[
                 "Rest, hydration, and symptom monitoring.",
